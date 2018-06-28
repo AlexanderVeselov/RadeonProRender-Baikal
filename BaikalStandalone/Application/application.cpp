@@ -380,6 +380,12 @@ namespace Baikal
         }
     }
 
+    void Application::OnWindowResize(GLFWwindow* window, int width, int height)
+    {
+        Application* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+        glfwSetWindowSize(window, app->m_settings.width, app->m_settings.height);
+    }
+
     void Application::Update(bool update_required)
     {
         static auto prevtime = std::chrono::high_resolution_clock::now();
@@ -659,6 +665,7 @@ namespace Baikal
                 glfwSetCursorPosCallback(m_window, Application::OnMouseMove);
                 glfwSetKeyCallback(m_window, Application::OnKey);
                 glfwSetScrollCallback(m_window, Application::OnMouseScroll);
+                glfwSetWindowSizeCallback(m_window, Application::OnWindowResize);
             }
             catch (std::runtime_error& err)
             {
