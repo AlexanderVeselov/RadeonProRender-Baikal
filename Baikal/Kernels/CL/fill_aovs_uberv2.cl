@@ -60,7 +60,10 @@ KERNEL void FillAOVsUberV2(
     // Materials
     GLOBAL int const* restrict material_attributes,
     // Textures
-    TEXTURE_ARG_LIST,
+    GLOBAL Texture const* restrict textures,
+    GLOBAL char const* restrict texturedata,
+    // Input map data
+    GLOBAL InputMapData const* restrict input_map_values,
     // Environment texture index
     int env_light_idx,
     // Background texture index
@@ -136,8 +139,7 @@ KERNEL void FillAOVsUberV2(
     int shape_ids_enabled,
     // Shape id map stores shape ud in every pixel
     // And negative number if there is no any shape in the pixel
-    GLOBAL float4* restrict aov_shape_ids,
-    GLOBAL InputMapData const* restrict input_map_values
+    GLOBAL float4* restrict aov_shape_ids
 )
 {
     int global_id = get_global_id(0);

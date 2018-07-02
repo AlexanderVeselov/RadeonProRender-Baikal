@@ -48,6 +48,9 @@ namespace Baikal
         char* envmapname = GetCmdOption(argv, argv + argc, "-e");
         s.envmapname = envmapname ? envmapname : s.envmapname;
 
+        char* lightsetname = GetCmdOption(argv, argv + argc, "-lightset");
+        s.lightset = lightsetname ? lightsetname : s.lightset;
+
         char* width = GetCmdOption(argv, argv + argc, "-w");
         s.width = width ? atoi(width) : s.width;
 
@@ -194,6 +197,7 @@ namespace Baikal
         : path("../Resources/CornellBox")
         , modelname("orig.objm")
         , envmapname("../Resources/Textures/studio015.hdr")
+        , lightset()
         //render
         , width(512)
         , height(512)

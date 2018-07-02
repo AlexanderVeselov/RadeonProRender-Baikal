@@ -39,6 +39,7 @@ namespace Baikal
         std::string path;
         std::string modelname;
         std::string envmapname;
+        std::string lightset;
 
         //render
         int width;

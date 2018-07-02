@@ -37,12 +37,15 @@ THE SOFTWARE.
 inline
 float4 Texture_Sample2D(float2 uv, TEXTURE_ARG_LIST_IDX(texidx))
 {
+    int idx = texidx;
+    int int_value = textures[idx].offset;
+    //return (float4)((int_value % 10) / 10.0f, (int_value % 20) / 20.0f, (int_value % 30) / 30.0f, 0.0f);
     // Get width and height
-    int width = textures[texidx].w;
-    int height = textures[texidx].h;
+    int width = textures[idx].w;
+    int height = textures[idx].h;
 
     // Find the origin of the data in the pool
-    __global char const* mydata = texturedata + textures[texidx].dataoffset;
+    __global char const* mydata = texturedata + textures[idx].offset;
 
     // Handle UV wrap
     // TODO: need UV mode support
@@ -65,7 +68,7 @@ float4 Texture_Sample2D(float2 uv, TEXTURE_ARG_LIST_IDX(texidx))
     float wx = uv.x * width - floor(uv.x * width);
     float wy = uv.y * height - floor(uv.y * height);
 
-    switch (textures[texidx].fmt)
+    switch (textures[idx].fmt)
     {
         case RGBA32:
         {
@@ -299,7 +302,7 @@ float3 Texture_SampleBump(float2 uv, TEXTURE_ARG_LIST_IDX(texidx))
     int height = textures[texidx].h;
 
     // Find the origin of the data in the pool
-    __global char const* mydata = texturedata + textures[texidx].dataoffset;
+    __global char const* mydata = texturedata + textures[texidx].offset;
 
     // Handle UV wrap
     // TODO: need UV mode support

@@ -759,6 +759,7 @@ namespace Baikal
         static int num_bounces = 5;
         static const std::vector<std::pair<Baikal::Renderer::OutputType, char const*>> kBaikalOutputs =
         {
+            { Renderer::OutputType::kAlbedo, "Albedo" },
             { Renderer::OutputType::kColor, "Color" },
             { Renderer::OutputType::kOpacity, "Opacity" },
             { Renderer::OutputType::kVisibility, "Visibility" },
@@ -767,7 +768,6 @@ namespace Baikal
             { Renderer::OutputType::kWorldGeometricNormal, "Geometric Normal" },
             { Renderer::OutputType::kUv, "Texture Coordinates" },
             { Renderer::OutputType::kWireframe, "Wireframe" },
-            { Renderer::OutputType::kAlbedo, "Albedo" },
             { Renderer::OutputType::kWorldTangent, "Tangent" },
             { Renderer::OutputType::kWorldBitangent, "Bitangent" },
             { Renderer::OutputType::kGloss, "Glossiness" },
@@ -972,6 +972,7 @@ namespace Baikal
 
                     if (!material)
                     {
+                        std::cout << "Shape " << shape->GetName() << std::endl;
                         throw std::runtime_error(
                             "Application::UpdateGui(...): dynamic cast failure");
                     }

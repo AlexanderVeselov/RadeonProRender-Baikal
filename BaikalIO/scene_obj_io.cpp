@@ -247,7 +247,7 @@ namespace Baikal
 
         RadeonRays::float3 emission(mat.emission[0], mat.emission[1], mat.emission[2]);
 
-        bool apply_gamma = true;
+        bool apply_gamma = false;
 
         uint32_t material_layers = 0;
         auto uberv2_set_texture = [](UberV2Material::Ptr material, const std::string input_name, Texture::Ptr texture, bool apply_gamma)
@@ -339,9 +339,14 @@ namespace Baikal
         {
             material_layers |= UberV2Material::Layers::kDiffuseLayer;
 
+            Texture::Ptr texture = nullptr;
             if (!mat.diffuse_texname.empty())
             {
-                auto texture = LoadTexture(image_io, scene, basepath, mat.diffuse_texname);
+                texture = LoadTexture(image_io, scene, basepath, mat.diffuse_texname);
+            }
+
+            if (texture)
+            {
                 uberv2_set_texture(material, "uberv2.diffuse.color", texture, apply_gamma);
             }
             else

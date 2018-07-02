@@ -858,6 +858,7 @@ namespace Baikal
         }
 
         ClwScene::Texture* textures = nullptr;
+        std::cout << "sizeof(ClwScene::Texture): " << sizeof(ClwScene::Texture) << std::endl;
         std::size_t num_textures_written = 0;
 
         // Map GPU materials buffer
@@ -1224,7 +1225,8 @@ namespace Baikal
         clw_texture->h = dim.y;
         clw_texture->d = dim.z;
         clw_texture->fmt = GetTextureFormat(texture);
-        clw_texture->dataoffset = static_cast<int>(data_offset);
+        clw_texture->offset = static_cast<unsigned int>(data_offset);
+
     }
 
     void ClwSceneController::WriteTextureData(Texture const& texture, void* data) const
@@ -1309,7 +1311,7 @@ namespace Baikal
             // Create material buffer
             out.input_map_data = m_context.CreateBuffer<ClwScene::InputMapData>(buffer_size, CL_MEM_READ_ONLY);
         }
-
+        std::cout << "input map data buffer size: " << out.input_map_data.GetElementCount() << std::endl;
         if (buffer_size > 0)
         {
             ClwScene::InputMapData *input_map_data = nullptr;
@@ -1351,31 +1353,31 @@ namespace Baikal
             case InputMap::InputMapType::kConstantFloat3:
             {
                 const InputMap_ConstantFloat3 &i = static_cast<const InputMap_ConstantFloat3&>(leaf);
-                data_pointer->float_value.value = i.GetValue();
-                data_pointer->int_values.type = ClwScene::InputMapDataType::kFloat3;
+                data_pointer->value = i.GetValue();
+                data_pointer->type = ClwScene::InputMapDataType::kFloat3;
                 break;
             }
             case InputMap::InputMapType::kConstantFloat:
             {
                 const InputMap_ConstantFloat &i = static_cast<const InputMap_ConstantFloat&>(leaf);
-                data_pointer->float_value.value.x = i.GetValue();
-                data_pointer->float_value.value.y = i.GetValue();
-                data_pointer->float_value.value.z = i.GetValue();
-                data_pointer->int_values.type = ClwScene::InputMapDataType::kFloat;
+                data_pointer->value.x = i.GetValue();
+                data_pointer->value.y = i.GetValue();
+                data_pointer->value.z = i.GetValue();
+                data_pointer->type = ClwScene::InputMapDataType::kFloat;
                 break;
             }
             case InputMap::InputMapType::kSampler:
             {
                 const InputMap_Sampler &i = static_cast<const InputMap_Sampler&>(leaf);
-                data_pointer->int_values.idx = tex_collector.GetItemIndex(i.GetTexture());
-                data_pointer->int_values.type = ClwScene::InputMapDataType::kInt;
+                data_pointer->idx = tex_collector.GetItemIndex(i.GetTexture());
+                data_pointer->type = ClwScene::InputMapDataType::kInt;
                 break;
             }
             case InputMap::InputMapType::kSamplerBumpmap:
             {
                 const InputMap_SamplerBumpMap &i = static_cast<const InputMap_SamplerBumpMap&>(leaf);
-                data_pointer->int_values.idx = tex_collector.GetItemIndex(i.GetTexture());
-                data_pointer->int_values.type = ClwScene::InputMapDataType::kInt;
+                data_pointer->idx = tex_collector.GetItemIndex(i.GetTexture());
+                data_pointer->type = ClwScene::InputMapDataType::kInt;
                 break;
             }
             default:

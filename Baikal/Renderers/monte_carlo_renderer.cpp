@@ -284,6 +284,7 @@ namespace Baikal
         fill_kernel.SetArg(argc++, scene.material_attributes);
         fill_kernel.SetArg(argc++, scene.textures);
         fill_kernel.SetArg(argc++, scene.texturedata);
+        fill_kernel.SetArg(argc++, scene.input_map_data);
         fill_kernel.SetArg(argc++, scene.envmapidx);
         fill_kernel.SetArg(argc++, scene.background_idx);
         fill_kernel.SetArg(argc++, output_size.x);
@@ -309,7 +310,6 @@ namespace Baikal
                 fill_kernel.SetArg(argc++, m_estimator->GetRayCountBuffer());
             }
         }
-        fill_kernel.SetArg(argc++, scene.input_map_data);
 
         // Run AOV kernel
         {

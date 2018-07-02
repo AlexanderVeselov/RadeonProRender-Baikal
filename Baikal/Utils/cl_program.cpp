@@ -34,7 +34,7 @@ THE SOFTWARE.
 #include "version.h"
 #include "Utils/mkpath.h"
 
-//#define DUMP_PROGRAM_SOURCE 1
+#define DUMP_PROGRAM_SOURCE 1
 
 using namespace Baikal;
 

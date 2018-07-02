@@ -111,21 +111,12 @@ typedef enum
 } InputMapDataType;
 
 // Input data for input maps
-typedef struct _InputMapData
+typedef struct
 {
-    union
-    {
-        struct
-        {
-            float3 value;
-        } float_value;
-        struct
-        {
-            int idx;
-            int placeholder[2];
-            int type; //We can use it since float3 is actually float4
-        } int_values;
-    };
+        float3 value;
+        unsigned int idx;
+        int type; //We can use it since float3 is actually float4
+        int placeholder[2];
 } InputMapData;
 
 enum Bxdf
@@ -220,17 +211,18 @@ enum TextureFormat
 
 /// Texture description
 typedef
-struct _Texture
+struct
 {
     // Width, height and depth
-    int w;
-    int h;
-    int d;
+    unsigned int w;
+    unsigned int h;
+    unsigned int d;
     // Offset in texture data array
-    int dataoffset;
+    int padding1;
+    unsigned int offset;
     // Format
     int fmt;
-    int extra;
+    int padding2[2];
 } Texture;
 
 // Hit data

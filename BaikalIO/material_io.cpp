@@ -649,9 +649,11 @@ namespace Baikal
             }
             case InputMap::InputMapType::kSampler:
             {
-                std::string filename(element->Attribute("value"));
+                //std::string filename(element->Attribute("value"));
+                // Name is actually filename of the textures
+                name = element->Attribute("value");
 
-                auto iter = m_name2tex.find(filename);
+                auto iter = m_name2tex.find(name);
                 Texture::Ptr texture;
 
                 if (iter != m_name2tex.cend())
@@ -660,7 +662,7 @@ namespace Baikal
                 }
                 else
                 {
-                    texture = io.LoadImage(m_base_path + filename);
+                    texture = io.LoadImage(m_base_path + name);
                     m_name2tex[name] = texture;
                 }
 
@@ -670,9 +672,11 @@ namespace Baikal
             }
             case InputMap::InputMapType::kSamplerBumpmap:
             {
-                std::string filename(element->Attribute("value"));
+                //std::string filename(element->Attribute("value"));
+                // Name is actually filename of the textures
+                name = element->Attribute("value");
 
-                auto iter = m_name2tex.find(filename);
+                auto iter = m_name2tex.find(name);
                 Texture::Ptr texture;
 
                 if (iter != m_name2tex.cend())
@@ -681,7 +685,7 @@ namespace Baikal
                 }
                 else
                 {
-                    texture = io.LoadImage(m_base_path + filename);
+                    texture = io.LoadImage(m_base_path + name);
                     m_name2tex[name] = texture;
                 }
 

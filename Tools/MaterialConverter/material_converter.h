@@ -9,7 +9,7 @@
 class MaterialConverter
 {
 public:
-    static std::set<Baikal::UberV2Material::Ptr> TranslateMaterials(std::set<BaikalOld::Material::Ptr> const& old_materials);
+    static std::vector<Baikal::UberV2Material::Ptr> TranslateMaterials(std::vector<BaikalOld::Material::Ptr> const& old_materials);
 
 private:
     static Baikal::Texture::Format TranslateFormat(BaikalOld::Texture::Format old_format);

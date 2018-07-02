@@ -76,14 +76,21 @@ void Process(int argc, char** argv)
     tinyxml2::XMLDocument doc;
     doc.LoadFile((scene_path_str + "mapping.xml").c_str());
 
-    std::set<BaikalOld::Material::Ptr> old_materials;
+    std::vector<BaikalOld::Material::Ptr> old_materials;
+
     for (auto element = doc.FirstChildElement(); element; element = element->NextSiblingElement())
     {
-        old_materials.emplace(all_materials[element->Attribute("to")]);
+        old_materials.emplace_back(all_materials[element->Attribute("to")]);
     }
 
     std::cout << "Converting materials" << std::endl;
-    std::set<Baikal::UberV2Material::Ptr> new_materials = MaterialConverter::TranslateMaterials(old_materials);
+    std::vector<Baikal::UberV2Material::Ptr> new_materials = MaterialConverter::TranslateMaterials(old_materials);
+
+    std::sort(new_materials.begin(), new_materials.end(),
+        [](Baikal::Material::Ptr mtl1, Baikal::Material::Ptr mtl2)
+    {
+        return (mtl1->GetName() < mtl2->GetName());
+    });
 
     auto material_io_new = Baikal::MaterialIo::CreateMaterialIoXML();
     auto material_new_iterator = std::make_unique<Baikal::ContainerIterator<decltype(new_materials)>>(std::move(new_materials));

@@ -79,7 +79,7 @@ Baikal::InputMap::Ptr MaterialConverter::TranslateInput(BaikalOld::Material::Ptr
         if (input_name == "albedo")
         {
             // Convert texture from gamma to linear space
-            input_map = Baikal::InputMap_Pow::Create(input_map, kGammaPower);
+            //input_map = Baikal::InputMap_Pow::Create(input_map, kGammaPower);
         }
     }
         break;
@@ -638,9 +638,9 @@ Baikal::UberV2Material::Ptr MaterialConverter::TranslateMaterial(BaikalOld::Mate
     throw std::runtime_error("TranslateMaterial: unsupported material type");
 }
 
-std::set<Baikal::UberV2Material::Ptr> MaterialConverter::TranslateMaterials(std::set<BaikalOld::Material::Ptr> const& old_materials)
+std::vector<Baikal::UberV2Material::Ptr> MaterialConverter::TranslateMaterials(std::vector<BaikalOld::Material::Ptr> const& old_materials)
 {
-    std::set<Baikal::UberV2Material::Ptr> result;
+    std::vector<Baikal::UberV2Material::Ptr> result;
     unsigned int i = 0;
     for (auto old_mtl: old_materials)
     {
@@ -658,7 +658,7 @@ std::set<Baikal::UberV2Material::Ptr> MaterialConverter::TranslateMaterials(std:
         {
             auto new_mtl = TranslateMaterial(old_mtl);
             new_mtl->SetName(old_mtl->GetName());
-            result.insert(new_mtl);
+            result.emplace_back(new_mtl);
         }
         catch (std::exception const& ex)
         {
