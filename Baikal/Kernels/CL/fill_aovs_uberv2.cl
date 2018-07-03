@@ -25,6 +25,7 @@ THE SOFTWARE.
 #include <../Baikal/Kernels/CL/common.cl>
 #include <../Baikal/Kernels/CL/ray.cl>
 #include <../Baikal/Kernels/CL/isect.cl>
+#include <../Baikal/Kernels/CL/texture.cl>
 
 typedef struct _Path
 {
@@ -461,43 +462,30 @@ KERNEL void FillAOVsUberV2(
                 float ngdotwi = dot(diffgeo.ng, wi);
                 bool backfacing = ngdotwi < 0.f;
 
-                float3 kd = 0;
+                float3 color = 0;
 
                 int input_id = material_attributes[diffgeo.mat.offset + 1];
-                int offset;
 
                 #if 1
 
                 switch (input_id)
                 {
-                case 16:
-                    offset = textures[input_map_values[0].idx].offset;
+                case 16: color = pow(Texture_Sample2D(diffgeo.uv, TEXTURE_ARGS_IDX(input_map_values[0].idx)).xyz, 1.01f);
                     break;
-                case 27:
-                    offset = textures[input_map_values[1].idx].offset;
+                case 27: color = pow(Texture_Sample2D(diffgeo.uv, TEXTURE_ARGS_IDX(input_map_values[1].idx)).xyz, 1.01f);
                     break;
                 }
 
                 #else
 
-                if (input_id == 15)
-                {
-                    offset = 0.5f;//textures[input_map_values[0].idx].offset;
-                }
-                else if (input_id == 16)
-                {
-                    offset = textures[input_map_values[0].idx].offset;
-                }
-                else if (input_id == 27)
-                {
-                    offset = textures[input_map_values[1].idx].offset;
-                }
+                if (input_id == 16) color = Texture_Sample2D(diffgeo.uv, TEXTURE_ARGS_IDX(input_map_values[0].idx)).xyz;
+                if (input_id == 27) color = Texture_Sample2D(diffgeo.uv, TEXTURE_ARGS_IDX(input_map_values[1].idx)).xyz;
 
                 #endif
 
-                kd = (float3)((offset % 10) / 10.0f, (offset % 20) / 20.0f, (offset % 30) / 30.0f);
+                //(float3)((offset % 10) / 10.0f, (offset % 20) / 20.0f, (offset % 30) / 30.0f);
 
-                aov_albedo[idx].xyz += kd;
+                aov_albedo[idx].xyz += color;
                 aov_albedo[idx].w += 1.f;
             }
 
