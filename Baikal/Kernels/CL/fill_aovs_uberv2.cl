@@ -60,8 +60,7 @@ KERNEL void FillAOVsUberV2(
     // Materials
     GLOBAL int const* restrict material_attributes,
     // Textures
-    GLOBAL Texture const* restrict textures,
-    GLOBAL char const* restrict texturedata,
+    TEXTURE_ARG_LIST,
     // Input map data
     GLOBAL InputMapData const* restrict input_map_values,
     // Environment texture index
@@ -273,8 +272,8 @@ KERNEL void FillAOVsUberV2(
                 UberV2ShaderData uber_shader_data;
                 UberV2PrepareInputs(&diffgeo, input_map_values, material_attributes, TEXTURE_ARGS, &uber_shader_data);
 
-                const float3 kd = ((diffgeo.mat.layers & kDiffuseLayer) == kDiffuseLayer) ?
-                    uber_shader_data.diffuse_color.xyz : (float3)(0.0f);
+                const float3 kd = //Texture_Sample2D(diffgeo.uv, TEXTURE_ARGS_IDX(diffgeo.mat.offset - 1)).xyz;
+                ((diffgeo.mat.layers & kDiffuseLayer) == kDiffuseLayer) ? uber_shader_data.diffuse_color.xyz : (float3)(0.0f);
 
                 aov_albedo[idx].xyz += kd;
                 aov_albedo[idx].w += 1.f;

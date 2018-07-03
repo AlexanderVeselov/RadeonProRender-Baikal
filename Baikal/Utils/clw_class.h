@@ -69,7 +69,7 @@ namespace Baikal
     inline void ClwClass::AddCommonOptions(std::string& opts) const
     {
         opts.append(" -cl-mad-enable -cl-fast-relaxed-math "
-            "-cl-std=CL1.2 "
+            "-cl-std=CL1.2 -save-temps=temps/ "
             "-I . ");
 
         opts.append(

@@ -84,7 +84,6 @@ void CLInputMapGenerator::GenerateSingleInput(std::shared_ptr<Baikal::InputMap> 
     m_float4_selector += "\t\tcase " + input_id + ": return ReadInputMap" + input_id + "(dg, input_map_values, TEXTURE_ARGS);\n";
     m_float_selector += "\t\tcase " + input_id + ": return ReadInputMap" + input_id + "(dg, input_map_values, TEXTURE_ARGS).x;\n";
 
-    int32_t index = input_map_leaf_collector.GetItemIndex(input);
     m_read_functions += "float4 ReadInputMap" + input_id + "(DifferentialGeometry const* dg, GLOBAL InputMapData const* restrict input_map_values, TEXTURE_ARG_LIST)\n{\n"
         //+ "\n printf(\"global id: %d, local id: %d, workgroup: %d, input_map_value: %d\\n\", get_global_id(0), get_local_id(0), get_global_id(0) / 64, input_map_values[" + std::to_string(index) + "].idx);\n"
         +"\treturn (float4)(\n\t";

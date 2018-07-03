@@ -28,8 +28,8 @@ THE SOFTWARE.
 
 
 /// To simplify a bit
-#define TEXTURE_ARG_LIST __global Texture const* textures, __global char const* texturedata
-#define TEXTURE_ARG_LIST_IDX(x) int x, __global Texture const* textures, __global char const* texturedata
+#define TEXTURE_ARG_LIST __global Texture const* restrict textures, __global char const* restrict texturedata
+#define TEXTURE_ARG_LIST_IDX(x) int x, __global Texture const* restrict textures, __global char const* restrict texturedata
 #define TEXTURE_ARGS textures, texturedata
 #define TEXTURE_ARGS_IDX(x) x, textures, texturedata
 
@@ -38,14 +38,14 @@ inline
 float4 Texture_Sample2D(float2 uv, TEXTURE_ARG_LIST_IDX(texidx))
 {
     int idx = texidx;
-    int int_value = textures[idx].offset;
+    //int int_value = textures[idx].offset;
     //return (float4)((int_value % 10) / 10.0f, (int_value % 20) / 20.0f, (int_value % 30) / 30.0f, 0.0f);
     // Get width and height
     int width = textures[idx].w;
     int height = textures[idx].h;
 
     // Find the origin of the data in the pool
-    __global char const* mydata = texturedata + textures[idx].offset;
+    //__global char const* mydata = texturedata + textures[idx].offset;
 
     // Handle UV wrap
     // TODO: need UV mode support
@@ -72,7 +72,7 @@ float4 Texture_Sample2D(float2 uv, TEXTURE_ARG_LIST_IDX(texidx))
     {
         case RGBA32:
         {
-            __global float4 const* mydataf = (__global float4 const*)mydata;
+            __global float4 const* mydataf = (__global float4 const*)(texturedata + textures[idx].offset);
 
             // Get 4 values for linear filtering
             float4 val00 = *(mydataf + width * y0 + x0);
@@ -86,7 +86,7 @@ float4 Texture_Sample2D(float2 uv, TEXTURE_ARG_LIST_IDX(texidx))
 
         case RGBA16:
         {
-            __global half const* mydatah = (__global half const*)mydata;
+            __global half const* mydatah = (__global half const*)(texturedata + textures[idx].offset);
 
             // Get 4 values
             float4 val00 = vload_half4(width * y0 + x0, mydatah);
@@ -100,7 +100,7 @@ float4 Texture_Sample2D(float2 uv, TEXTURE_ARG_LIST_IDX(texidx))
 
         case RGBA8:
         {
-            __global uchar4 const* mydatac = (__global uchar4 const*)mydata;
+            __global uchar4 const* mydatac = (__global uchar4 const*)(texturedata + textures[idx].offset);
 
             // Get 4 values and convert to float
             uchar4 valu00 = *(mydatac + width * y0 + x0);
