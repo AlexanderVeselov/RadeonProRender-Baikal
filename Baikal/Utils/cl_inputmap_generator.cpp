@@ -36,8 +36,9 @@ const std::string footer = "#endif\n\n";
 
 const std::string float4_selector_header =
     "float4 GetInputMapFloat4(uint input_id, DifferentialGeometry const* dg, GLOBAL InputMapData const* restrict input_map_values, TEXTURE_ARG_LIST)\n{\n"
-    "\tswitch(input_id)\n\t{\n";
-const std::string float4_selector_footer = "\t}\n\treturn 0.0f;\n}\n";
+    ;//"\tswitch(input_id)\n\t{\n";
+const std::string float4_selector_footer = //"\t}"
+"\n\treturn 0.0f;\n}\n";
 
 const std::string float_selector_header =
     "float GetInputMapFloat(uint input_id, DifferentialGeometry const* dg, GLOBAL InputMapData const* restrict input_map_values, TEXTURE_ARG_LIST)\n{\n"
@@ -65,7 +66,7 @@ void CLInputMapGenerator::Generate(const Collector& input_map_collector, const C
 
     for (auto &input : inputs)
     {
-        GenerateSingleInput(input.second, input_map_leaf_collector);
+    //    GenerateSingleInput(input.second, input_map_leaf_collector);
     }
 
     m_source_code += m_read_functions;
@@ -81,8 +82,8 @@ void CLInputMapGenerator::GenerateSingleInput(std::shared_ptr<Baikal::InputMap> 
     std::string input_id = std::to_string(input->GetId());
 
     //Generate code for selectors
-    m_float4_selector += "\t\tcase " + input_id + ": return ReadInputMap" + input_id + "(dg, input_map_values, TEXTURE_ARGS);\n";
-    m_float_selector += "\t\tcase " + input_id + ": return ReadInputMap" + input_id + "(dg, input_map_values, TEXTURE_ARGS).x;\n";
+    m_float4_selector += "\t\tif (input_id == " + input_id + ") return ReadInputMap" + input_id + "(dg, input_map_values, TEXTURE_ARGS);\n";
+    m_float_selector += "\t\tif (input_id == " + input_id + ") return ReadInputMap" + input_id + "(dg, input_map_values, TEXTURE_ARGS).x;\n";
 
     m_read_functions += "float4 ReadInputMap" + input_id + "(DifferentialGeometry const* dg, GLOBAL InputMapData const* restrict input_map_values, TEXTURE_ARG_LIST)\n{\n"
         //+ "\n printf(\"global id: %d, local id: %d, workgroup: %d, input_map_value: %d\\n\", get_global_id(0), get_local_id(0), get_global_id(0) / 64, input_map_values[" + std::to_string(index) + "].idx);\n"

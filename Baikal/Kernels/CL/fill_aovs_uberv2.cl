@@ -25,16 +25,299 @@ THE SOFTWARE.
 #include <../Baikal/Kernels/CL/common.cl>
 #include <../Baikal/Kernels/CL/ray.cl>
 #include <../Baikal/Kernels/CL/isect.cl>
+
+typedef struct _Path
+{
+    float3 throughput;
+    int volume;
+    int flags;
+    int active;
+    int extra1;
+} Path;
+
+#include <../Baikal/Kernels/CL/vertex.cl>
+
+#ifndef SCENE_CL
+#define SCENE_CL
+
+#include <../Baikal/Kernels/CL/common.cl>
 #include <../Baikal/Kernels/CL/utils.cl>
 #include <../Baikal/Kernels/CL/payload.cl>
-#include <../Baikal/Kernels/CL/texture.cl>
-#include <../Baikal/Kernels/CL/sampling.cl>
-#include <../Baikal/Kernels/CL/bxdf.cl>
-#include <../Baikal/Kernels/CL/light.cl>
-#include <../Baikal/Kernels/CL/scene.cl>
-#include <../Baikal/Kernels/CL/volumetrics.cl>
-#include <../Baikal/Kernels/CL/path.cl>
-#include <../Baikal/Kernels/CL/vertex.cl>
+
+typedef struct
+{
+    // Vertices
+    GLOBAL float3 const* restrict vertices;
+    // Normals
+    GLOBAL float3 const* restrict normals;
+    // UVs
+    GLOBAL float2 const* restrict uvs;
+    // Indices
+    GLOBAL int const* restrict indices;
+    // Shapes
+    GLOBAL Shape const* restrict shapes;
+    // Material attributes
+    GLOBAL int const* restrict material_attributes;
+    // Input map values
+    GLOBAL InputMapData const* restrict input_map_values;
+    // Emissive objects
+    GLOBAL Light const* restrict lights;
+    // Envmap idx
+    int env_light_idx;
+    // Number of emissive objects
+    int num_lights;
+    // Light distribution 
+    GLOBAL int const* restrict light_distribution;
+} Scene;
+
+// Get triangle vertices given scene, shape index and prim index
+INLINE void Scene_GetTriangleVertices(Scene const* scene, int shape_idx, int prim_idx, float3* v0, float3* v1, float3* v2)
+{
+    // Extract shape data
+    Shape shape = scene->shapes[shape_idx];
+
+    // Fetch indices starting from startidx and offset by prim_idx
+    int i0 = scene->indices[shape.startidx + 3 * prim_idx];
+    int i1 = scene->indices[shape.startidx + 3 * prim_idx + 1];
+    int i2 = scene->indices[shape.startidx + 3 * prim_idx + 2];
+
+    // Fetch positions and transform to world space
+    *v0 = matrix_mul_point3(shape.transform, scene->vertices[shape.startvtx + i0]);
+    *v1 = matrix_mul_point3(shape.transform, scene->vertices[shape.startvtx + i1]);
+    *v2 = matrix_mul_point3(shape.transform, scene->vertices[shape.startvtx + i2]);
+}
+
+// Get triangle uvs given scene, shape index and prim index
+INLINE void Scene_GetTriangleUVs(Scene const* scene, int shape_idx, int prim_idx, float2* uv0, float2* uv1, float2* uv2)
+{
+    // Extract shape data
+    Shape shape = scene->shapes[shape_idx];
+
+    // Fetch indices starting from startidx and offset by prim_idx
+    int i0 = scene->indices[shape.startidx + 3 * prim_idx];
+    int i1 = scene->indices[shape.startidx + 3 * prim_idx + 1];
+    int i2 = scene->indices[shape.startidx + 3 * prim_idx + 2];
+
+    // Fetch positions and transform to world space
+    *uv0 = scene->uvs[shape.startvtx + i0];
+    *uv1 = scene->uvs[shape.startvtx + i1];
+    *uv2 = scene->uvs[shape.startvtx + i2];
+}
+
+
+// Interpolate position, normal and uv
+INLINE void Scene_InterpolateAttributes(Scene const* scene, int shape_idx, int prim_idx, float2 barycentrics, float3* p, float3* n, float2* uv, float* area)
+{
+    // Extract shape data
+    Shape shape = scene->shapes[shape_idx];
+
+    // Fetch indices starting from startidx and offset by prim_idx
+    int i0 = scene->indices[shape.startidx + 3 * prim_idx];
+    int i1 = scene->indices[shape.startidx + 3 * prim_idx + 1];
+    int i2 = scene->indices[shape.startidx + 3 * prim_idx + 2];
+
+    // Fetch normals
+    float3 n0 = scene->normals[shape.startvtx + i0];
+    float3 n1 = scene->normals[shape.startvtx + i1];
+    float3 n2 = scene->normals[shape.startvtx + i2];
+
+    // Fetch positions and transform to world space
+    float3 v0 = matrix_mul_point3(shape.transform, scene->vertices[shape.startvtx + i0]);
+    float3 v1 = matrix_mul_point3(shape.transform, scene->vertices[shape.startvtx + i1]);
+    float3 v2 = matrix_mul_point3(shape.transform, scene->vertices[shape.startvtx + i2]);
+
+    // Fetch UVs
+    float2 uv0 = scene->uvs[shape.startvtx + i0];
+    float2 uv1 = scene->uvs[shape.startvtx + i1];
+    float2 uv2 = scene->uvs[shape.startvtx + i2];
+
+    // Calculate barycentric position and normal
+    *p = (1.f - barycentrics.x - barycentrics.y) * v0 + barycentrics.x * v1 + barycentrics.y * v2;
+    *n = normalize(matrix_mul_vector3(shape.transform, (1.f - barycentrics.x - barycentrics.y) * n0 + barycentrics.x * n1 + barycentrics.y * n2));
+    *uv = (1.f - barycentrics.x - barycentrics.y) * uv0 + barycentrics.x * uv1 + barycentrics.y * uv2;
+    *area = 0.5f * length(cross(v2 - v0, v1 - v0));
+}
+
+// Interpolate position, normal and uv
+INLINE void Scene_InterpolateVertices(Scene const* scene, int shape_idx, int prim_idx, float2 barycentrics, float3* p)
+{
+    // Extract shape data
+    Shape shape = scene->shapes[shape_idx];
+
+    // Fetch indices starting from startidx and offset by prim_idx
+    int i0 = scene->indices[shape.startidx + 3 * prim_idx];
+    int i1 = scene->indices[shape.startidx + 3 * prim_idx + 1];
+    int i2 = scene->indices[shape.startidx + 3 * prim_idx + 2];
+
+    // Fetch positions and transform to world space
+    float3 v0 = matrix_mul_point3(shape.transform, scene->vertices[shape.startvtx + i0]);
+    float3 v1 = matrix_mul_point3(shape.transform, scene->vertices[shape.startvtx + i1]);
+    float3 v2 = matrix_mul_point3(shape.transform, scene->vertices[shape.startvtx + i2]);
+
+    // Calculate barycentric position and normal
+    *p = (1.f - barycentrics.x - barycentrics.y) * v0 + barycentrics.x * v1 + barycentrics.y * v2;
+}
+
+// Interpolate position, normal and uv
+INLINE void Scene_InterpolateVerticesFromIntersection(Scene const* scene, Intersection const* isect, float3* p)
+{
+    // Extract shape data
+    int shape_idx = isect->shapeid - 1;
+    int prim_idx = isect->primid;
+    float2 barycentrics = isect->uvwt.xy;
+
+    Shape shape = scene->shapes[shape_idx];
+
+    // Fetch indices starting from startidx and offset by prim_idx
+    int i0 = scene->indices[shape.startidx + 3 * prim_idx];
+    int i1 = scene->indices[shape.startidx + 3 * prim_idx + 1];
+    int i2 = scene->indices[shape.startidx + 3 * prim_idx + 2];
+
+    // Fetch positions and transform to world space
+    float3 v0 = matrix_mul_point3(shape.transform, scene->vertices[shape.startvtx + i0]);
+    float3 v1 = matrix_mul_point3(shape.transform, scene->vertices[shape.startvtx + i1]);
+    float3 v2 = matrix_mul_point3(shape.transform, scene->vertices[shape.startvtx + i2]);
+
+    // Calculate barycentric position and normal
+    *p = (1.f - barycentrics.x - barycentrics.y) * v0 + barycentrics.x * v1 + barycentrics.y * v2;
+}
+
+// Interpolate position, normal and uv
+INLINE void Scene_InterpolateNormalsFromIntersection(Scene const* scene, Intersection const* isect, float3* n)
+{
+    // Extract shape data
+    int shape_idx = isect->shapeid - 1;
+    int prim_idx = isect->primid;
+    float2 barycentrics = isect->uvwt.xy;
+
+    Shape shape = scene->shapes[shape_idx];
+
+    // Fetch indices starting from startidx and offset by prim_idx
+    int i0 = scene->indices[shape.startidx + 3 * prim_idx];
+    int i1 = scene->indices[shape.startidx + 3 * prim_idx + 1];
+    int i2 = scene->indices[shape.startidx + 3 * prim_idx + 2];
+
+    // Fetch normals
+    float3 n0 = scene->normals[shape.startvtx + i0];
+    float3 n1 = scene->normals[shape.startvtx + i1];
+    float3 n2 = scene->normals[shape.startvtx + i2];
+
+    // Calculate barycentric position and normal
+    *n = normalize(matrix_mul_vector3(shape.transform, (1.f - barycentrics.x - barycentrics.y) * n0 + barycentrics.x * n1 + barycentrics.y * n2));
+}
+
+INLINE int Scene_GetVolumeIndex(Scene const* scene, int shape_idx)
+{
+    Shape shape = scene->shapes[shape_idx];
+    return shape.volume_idx;
+}
+
+/// Fill DifferentialGeometry structure based on intersection info from RadeonRays
+void Scene_FillDifferentialGeometry(// Scene
+                              Scene const* scene,
+                              // RadeonRays intersection
+                              Intersection const* isect,
+                              // Differential geometry
+                              DifferentialGeometry* diffgeo
+                              )
+{
+    // Determine shape and polygon
+    int shape_idx = isect->shapeid - 1;
+    int prim_idx = isect->primid;
+
+    // Get barycentrics
+    float2 barycentrics = isect->uvwt.xy;
+
+    // Extract shape data
+    Shape shape = scene->shapes[shape_idx];
+
+    // Interpolate attributes
+    float3 p;
+    float3 n;
+    float2 uv;
+    float area;
+    Scene_InterpolateAttributes(scene, shape_idx, prim_idx, barycentrics, &p, &n, &uv, &area);
+    // Triangle area (for area lighting)
+    diffgeo->area = area;
+
+    // Calculate barycentric position and normal
+    diffgeo->n = n;
+    diffgeo->p = p;
+    diffgeo->uv = uv;
+
+    // Get vertices
+    float3 v0, v1, v2;
+    Scene_GetTriangleVertices(scene, shape_idx, prim_idx, &v0, &v1, &v2);
+
+    // Calculate true normal
+    diffgeo->ng = normalize(cross(v1 - v0, v2 - v0));
+
+    // Get material at shading point
+    diffgeo->mat = shape.material;
+
+    // Get UVs
+    float2 uv0, uv1, uv2;
+    Scene_GetTriangleUVs(scene, shape_idx, prim_idx, &uv0, &uv1, &uv2);
+
+    // Reverse geometric normal if shading normal points to different side
+    if (dot(diffgeo->ng, diffgeo->n) < 0.f)
+    {
+        diffgeo->ng = -diffgeo->ng;
+    }
+
+    /// Calculate tangent basis
+    /// From PBRT book
+    float du1 = uv0.x - uv2.x;
+    float du2 = uv1.x - uv2.x;
+    float dv1 = uv0.y - uv2.y;
+    float dv2 = uv1.y - uv2.y;
+    float3 dp1 = v0 - v2;
+    float3 dp2 = v1 - v2;
+    float det = du1 * dv2 - dv1 * du2;
+
+    if (0 && det != 0.f)
+    {
+        float invdet = 1.f / det;
+        diffgeo->dpdu = normalize( (dv2 * dp1 - dv1 * dp2) * invdet );
+        diffgeo->dpdv = normalize( (-du2 * dp1 + du1 * dp2) * invdet );
+        diffgeo->dpdu -= dot(diffgeo->n, diffgeo->dpdu) * diffgeo->n;
+        diffgeo->dpdu = normalize(diffgeo->dpdu);
+        
+        diffgeo->dpdv -= dot(diffgeo->n, diffgeo->dpdv) * diffgeo->n;
+        diffgeo->dpdv -= dot(diffgeo->dpdu, diffgeo->dpdv) * diffgeo->dpdu;
+        diffgeo->dpdv = normalize(diffgeo->dpdv);
+    }
+    else
+    {
+        diffgeo->dpdu = normalize(GetOrthoVector(diffgeo->n));
+        diffgeo->dpdv = normalize(cross(diffgeo->n, diffgeo->dpdu));
+    }
+}
+
+
+// Calculate tangent transform matrices inside differential geometry
+INLINE void DifferentialGeometry_CalculateTangentTransforms(DifferentialGeometry* diffgeo)
+{
+    diffgeo->world_to_tangent = matrix_from_rows3(diffgeo->dpdu, diffgeo->n, diffgeo->dpdv);
+
+    diffgeo->world_to_tangent.m0.w = -dot(diffgeo->dpdu, diffgeo->p);
+    diffgeo->world_to_tangent.m1.w = -dot(diffgeo->n, diffgeo->p);
+    diffgeo->world_to_tangent.m2.w = -dot(diffgeo->dpdv, diffgeo->p);
+
+    diffgeo->tangent_to_world = matrix_from_cols3(diffgeo->world_to_tangent.m0.xyz, 
+        diffgeo->world_to_tangent.m1.xyz, diffgeo->world_to_tangent.m2.xyz);
+
+    diffgeo->tangent_to_world.m0.w = diffgeo->p.x;
+    diffgeo->tangent_to_world.m1.w = diffgeo->p.y;
+    diffgeo->tangent_to_world.m2.w = diffgeo->p.z;
+}
+
+#endif
+
+#define TEXTURE_ARG_LIST __global Texture const* restrict textures, __global char const* restrict texturedata
+#define TEXTURE_ARG_LIST_IDX(x) int x, __global Texture const* restrict textures, __global char const* restrict texturedata
+#define TEXTURE_ARGS textures, texturedata
+#define TEXTURE_ARGS_IDX(x) x, textures, texturedata
 
 // Fill AOVs
 KERNEL void FillAOVsUberV2(
@@ -163,251 +446,61 @@ KERNEL void FillAOVsUberV2(
         Intersection isect = isects[global_id];
         int idx = pixel_idx[global_id];
 
-        if (shape_ids_enabled)
-            aov_shape_ids[idx].x = -1;
-
-        if (background_enabled)
-        {
-            if (background_idx != -1)
-            {
-                float x = (float)(idx % width) / (float)width;
-                float y = (float)(idx / width) / (float)height;
-                float2 uv = make_float2(x, y);
-                aov_background[idx].xyz += Texture_Sample2D(uv, TEXTURE_ARGS_IDX(background_idx)).xyz;
-            }
-            else if (env_light_idx != -1)
-            {
-                Light light = lights[env_light_idx];
-                int tex = EnvironmentLight_GetBackgroundTexture(&light);
-                if (tex != -1)
-                {
-                    aov_background[idx].xyz += light.multiplier * Texture_SampleEnvMap(rays[global_id].d.xyz, TEXTURE_ARGS_IDX(tex), light.ibl_mirror_x);
-                }
-            }
-            aov_background[idx].w += 1.0f;
-        }
 
         if (isect.shapeid > -1)
         {
             // Fetch incoming ray direction
             float3 wi = -normalize(rays[global_id].d.xyz);
 
-            Sampler sampler;
-#if SAMPLER == SOBOL 
-            uint scramble = random[global_id] * 0x1fe3434f;
-            Sampler_Init(&sampler, frame, SAMPLE_DIM_SURFACE_OFFSET, scramble);
-#elif SAMPLER == RANDOM
-            uint scramble = global_id * rngseed;
-            Sampler_Init(&sampler, scramble);
-#elif SAMPLER == CMJ
-            uint rnd = random[global_id];
-            uint scramble = rnd * 0x1fe3434f * ((frame + 331 * rnd) / (CMJ_DIM * CMJ_DIM));
-            Sampler_Init(&sampler, frame % (CMJ_DIM * CMJ_DIM), SAMPLE_DIM_SURFACE_OFFSET, scramble);
-#endif
-
             // Fill surface data
             DifferentialGeometry diffgeo;
             Scene_FillDifferentialGeometry(&scene, &isect, &diffgeo);
-
-            if (world_position_enabled)
-            {
-                aov_world_position[idx].xyz += diffgeo.p;
-                aov_world_position[idx].w += 1.f;
-            }
-
-            if (world_shading_normal_enabled)
-            {
-                float ngdotwi = dot(diffgeo.ng, wi);
-                bool backfacing = ngdotwi < 0.f;
-
-                // Select BxDF
-                UberV2ShaderData uber_shader_data;
-                UberV2PrepareInputs(&diffgeo, input_map_values, material_attributes, TEXTURE_ARGS, &uber_shader_data);
-                GetMaterialBxDFType(wi, &sampler, SAMPLER_ARGS, &diffgeo, &uber_shader_data);
-
-                float s = Bxdf_IsBtdf(&diffgeo) ? (-sign(ngdotwi)) : 1.f;
-                if (backfacing && !Bxdf_IsBtdf(&diffgeo))
-                {
-                    //Reverse normal and tangents in this case
-                    //but not for BTDFs, since BTDFs rely
-                    //on normal direction in order to arrange   
-                    //indices of refraction
-                    diffgeo.n = -diffgeo.n;
-                    diffgeo.dpdu = -diffgeo.dpdu;
-                    diffgeo.dpdv = -diffgeo.dpdv;
-                }
-                UberV2_ApplyShadingNormal(&diffgeo, &uber_shader_data);
-                DifferentialGeometry_CalculateTangentTransforms(&diffgeo);
-
-                aov_world_shading_normal[idx].xyz += diffgeo.n;
-                aov_world_shading_normal[idx].w += 1.f;
-            }
-
-            if (world_geometric_normal_enabled)
-            {
-                aov_world_geometric_normal[idx].xyz += diffgeo.ng;
-                aov_world_geometric_normal[idx].w += 1.f;
-            }
-
-            if (wireframe_enabled)
-            {
-                bool hit = (isect.uvwt.x < 1e-3) || (isect.uvwt.y < 1e-3) || (1.f - isect.uvwt.x - isect.uvwt.y < 1e-3);
-                float3 value = hit ? make_float3(1.f, 1.f, 1.f) : make_float3(0.f, 0.f, 0.f);
-                aov_wireframe[idx].xyz += value;
-                aov_wireframe[idx].w += 1.f;
-            }
-
-            if (uv_enabled)
-            {
-                aov_uv[idx].xy += diffgeo.uv.xy;
-                aov_uv[idx].w += 1.f;
-            }
-
+            
             if (albedo_enabled)
             {
                 float ngdotwi = dot(diffgeo.ng, wi);
                 bool backfacing = ngdotwi < 0.f;
 
-                // Select BxDF
-                UberV2ShaderData uber_shader_data;
-                UberV2PrepareInputs(&diffgeo, input_map_values, material_attributes, TEXTURE_ARGS, &uber_shader_data);
+                float3 kd = 0;
 
-                const float3 kd = //Texture_Sample2D(diffgeo.uv, TEXTURE_ARGS_IDX(diffgeo.mat.offset - 1)).xyz;
-                ((diffgeo.mat.layers & kDiffuseLayer) == kDiffuseLayer) ? uber_shader_data.diffuse_color.xyz : (float3)(0.0f);
+                int input_id = material_attributes[diffgeo.mat.offset + 1];
+                int offset;
+
+                #if 1
+
+                switch (input_id)
+                {
+                case 16:
+                    offset = textures[input_map_values[0].idx].offset;
+                    break;
+                case 27:
+                    offset = textures[input_map_values[1].idx].offset;
+                    break;
+                }
+
+                #else
+
+                if (input_id == 15)
+                {
+                    offset = 0.5f;//textures[input_map_values[0].idx].offset;
+                }
+                else if (input_id == 16)
+                {
+                    offset = textures[input_map_values[0].idx].offset;
+                }
+                else if (input_id == 27)
+                {
+                    offset = textures[input_map_values[1].idx].offset;
+                }
+
+                #endif
+
+                kd = (float3)((offset % 10) / 10.0f, (offset % 20) / 20.0f, (offset % 30) / 30.0f);
 
                 aov_albedo[idx].xyz += kd;
                 aov_albedo[idx].w += 1.f;
             }
 
-            if (world_tangent_enabled)
-            {
-                float ngdotwi = dot(diffgeo.ng, wi);
-                bool backfacing = ngdotwi < 0.f;
-
-                // Select BxDF
-                UberV2ShaderData uber_shader_data;
-                UberV2PrepareInputs(&diffgeo, input_map_values, material_attributes, TEXTURE_ARGS, &uber_shader_data);
-                GetMaterialBxDFType(wi, &sampler, SAMPLER_ARGS, &diffgeo, &uber_shader_data);
-
-                float s = Bxdf_IsBtdf(&diffgeo) ? (-sign(ngdotwi)) : 1.f;
-                if (backfacing && !Bxdf_IsBtdf(&diffgeo))
-                {
-                    //Reverse normal and tangents in this case
-                    //but not for BTDFs, since BTDFs rely
-                    //on normal direction in order to arrange
-                    //indices of refraction
-                    diffgeo.n = -diffgeo.n;
-                    diffgeo.dpdu = -diffgeo.dpdu;
-                    diffgeo.dpdv = -diffgeo.dpdv;
-                }
-
-                UberV2_ApplyShadingNormal(&diffgeo, &uber_shader_data);
-                DifferentialGeometry_CalculateTangentTransforms(&diffgeo);
-
-                aov_world_tangent[idx].xyz += diffgeo.dpdu;
-                aov_world_tangent[idx].w += 1.f;
-            }
-
-            if (world_bitangent_enabled)
-            {
-                float ngdotwi = dot(diffgeo.ng, wi);
-                bool backfacing = ngdotwi < 0.f;
-
-                // Select BxDF
-                UberV2ShaderData uber_shader_data;
-                UberV2PrepareInputs(&diffgeo, input_map_values, material_attributes, TEXTURE_ARGS, &uber_shader_data);
-                GetMaterialBxDFType(wi, &sampler, SAMPLER_ARGS, &diffgeo, &uber_shader_data);
-
-                float s = Bxdf_IsBtdf(&diffgeo) ? (-sign(ngdotwi)) : 1.f;
-                if (backfacing && !Bxdf_IsBtdf(&diffgeo))
-                {
-                    //Reverse normal and tangents in this case
-                    //but not for BTDFs, since BTDFs rely
-                    //on normal direction in order to arrange
-                    //indices of refraction
-                    diffgeo.n = -diffgeo.n;
-                    diffgeo.dpdu = -diffgeo.dpdu;
-                    diffgeo.dpdv = -diffgeo.dpdv;
-                }
-
-                UberV2_ApplyShadingNormal(&diffgeo, &uber_shader_data);
-                DifferentialGeometry_CalculateTangentTransforms(&diffgeo);
-
-                aov_world_bitangent[idx].xyz += diffgeo.dpdv;
-                aov_world_bitangent[idx].w += 1.f;
-            }
-
-            if (gloss_enabled)
-            {
-                float ngdotwi = dot(diffgeo.ng, wi);
-                bool backfacing = ngdotwi < 0.f;
-
-                // Select BxDF
-                UberV2ShaderData uber_shader_data;
-                UberV2PrepareInputs(&diffgeo, input_map_values, material_attributes, TEXTURE_ARGS, &uber_shader_data);
-                GetMaterialBxDFType(wi, &sampler, SAMPLER_ARGS, &diffgeo, &uber_shader_data);
-
-                float gloss = 0.f;
-                if ((diffgeo.mat.layers & kCoatingLayer) == kCoatingLayer)
-                {
-                    gloss = 1.0f;
-                }
-                else if ((diffgeo.mat.layers & kReflectionLayer) == kReflectionLayer)
-                {
-                    gloss = 1.0f - uber_shader_data.reflection_roughness;
-                    if ((diffgeo.mat.layers & kRefractionLayer) == kRefractionLayer)
-                    {
-                        gloss = max(gloss, 1.0f - uber_shader_data.refraction_roughness);
-                    }
-                }
-                else if ((diffgeo.mat.layers & kRefractionLayer) == kRefractionLayer)
-                {
-                    gloss = 1.0f - uber_shader_data.refraction_roughness;
-                }
-
-                aov_gloss[idx].xyz += gloss;
-                aov_gloss[idx].w += 1.f;
-            }
-            
-            if (mesh_id_enabled)
-            {
-                Sampler shapeid_sampler;
-                shapeid_sampler.index = shapes[isect.shapeid - 1].id;
-                mesh_id[idx].xyz += clamp(make_float3(UniformSampler_Sample1D(&shapeid_sampler),
-                    UniformSampler_Sample1D(&shapeid_sampler),
-                    UniformSampler_Sample1D(&shapeid_sampler)), 0.0f, 1.0f);
-                mesh_id[idx].w += 1.0f;
-            }
-
-            if (group_id_enabled)
-            {
-                Sampler groupid_sampler;
-                groupid_sampler.index = shapes_additional[isect.shapeid - 1].group_id;
-                group_id[idx].xyz += clamp(make_float3(UniformSampler_Sample1D(&groupid_sampler),
-                    UniformSampler_Sample1D(&groupid_sampler),
-                    UniformSampler_Sample1D(&groupid_sampler)), 0.0f, 1.0f);
-                group_id[idx].w += 1.0f;
-            }
-
-            if (depth_enabled)
-            {
-                float w = aov_depth[idx].w;
-                if (w == 0.f)
-                {
-                    aov_depth[idx].xyz = isect.uvwt.w;
-                    aov_depth[idx].w = 1.f;
-                }
-                else
-                {
-                    aov_depth[idx].xyz += isect.uvwt.w;
-                    aov_depth[idx].w += 1.f;
-                }
-            }
-
-            if (shape_ids_enabled)
-            {
-                aov_shape_ids[idx].x = shapes[isect.shapeid - 1].id;
-            }
         }
     }
 }

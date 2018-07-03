@@ -606,17 +606,19 @@ std::string Baikal::CLUberV2Generator::GeneratePrepareInputsDispatcher()
         "DifferentialGeometry const* dg, GLOBAL InputMapData const* restrict input_map_values,"
         "GLOBAL int const* restrict material_attributes, TEXTURE_ARG_LIST, UberV2ShaderData *shader_data)\n"
         "{\n"
-        "\tswitch(dg->mat.layers)\n"
-        "\t{\n";
+        //"\tswitch(dg->mat.layers)\n"
+        //"\t{\n";
+        ;
 
     for(auto material : m_materials)
     {
-        source += "\t\tcase " + std::to_string(material.first) + ":\n" +
+        source += "\t\tif (dg->mat.layers == " + std::to_string(material.first) + ")\n" +
             "\t\t\treturn UberV2PrepareInputs" + std::to_string(material.first) + "(dg, input_map_values, material_attributes, TEXTURE_ARGS, shader_data);\n";
     }
 
-    source += "\t}\n"
-        "}\n";
+    source += //"\t}\n"
+        "}\n"
+        ;
 
     return source;
 
