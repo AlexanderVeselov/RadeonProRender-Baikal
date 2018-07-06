@@ -339,6 +339,29 @@ TEST_F(BasicTest, RenderTestScene)
     ASSERT_TRUE(CompareToReference(test_name() + ".png"));
 }
 
+TEST_F(BasicTest, Basic_Instancing)
+{
+    ClearOutput();
 
+    auto mesh = m_scene->CreateShapeIterator()->ItemAs<Baikal::Mesh>();
+    mesh->SetTransform(RadeonRays::scale(RadeonRays::float3(0.25f, 0.25f, 0.25f)));
+    for (int i = 0; i < 5; ++i)
+    {
+        auto instance = Baikal::Instance::Create(mesh);
+        instance->SetTransform(RadeonRays::translation(RadeonRays::float3((i - 2.0f) * 1.0f, 2.0f, 0.0f)) * RadeonRays::scale(RadeonRays::float3(0.25f, 0.25f, 0.25f)));
+        instance->SetMaterial(mesh->GetMaterial());
+        m_scene->AttachShape(instance);
+    }
 
+    ASSERT_NO_THROW(m_controller->CompileScene(m_scene));
 
+    auto& scene = m_controller->GetCachedScene(m_scene);
+
+    for (auto i = 0u; i < kNumIterations; ++i)
+    {
+        ASSERT_NO_THROW(m_renderer->Render(scene));
+    }
+
+    SaveOutput(test_name() + ".png");
+    ASSERT_TRUE(CompareToReference(test_name() + ".png"));
+}
