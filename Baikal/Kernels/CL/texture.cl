@@ -29,10 +29,10 @@ THE SOFTWARE.
 
 
 /// To simplify a bit
-#define TEXTURE_ARG_LIST __global Texture const* textures, __global MipLevel const* mip_levels, __global char const* texturedata
-#define TEXTURE_ARG_LIST_IDX(x) int x, __global Texture const* textures, __global MipLevel const* mip_levels, __global char const* texturedata
-#define TEXTURE_ARGS textures, mip_levels, texturedata
-#define TEXTURE_ARGS_IDX(x) x, textures, mip_levels, texturedata
+#define TEXTURE_ARG_LIST __global Texture const* textures/*, __global MipLevel const* mip_levels*/, __global char const* texturedata
+#define TEXTURE_ARG_LIST_IDX(x) int x, __global Texture const* textures/*, __global MipLevel const* mip_levels*/, __global char const* texturedata
+#define TEXTURE_ARGS textures/*, mip_levels*/, texturedata
+#define TEXTURE_ARGS_IDX(x) x, textures/*, mip_levels*/, texturedata
 
 inline
 int WrapTexel(float coord, float modulus)
@@ -44,6 +44,8 @@ int WrapTexel(float coord, float modulus)
 inline
 float4 Texture_Sample2DNoMip(float2 uv, TEXTURE_ARG_LIST_IDX(texidx))
 {
+    return make_float4(1, 0, 0, 0);
+/*
     MipLevel texture_level = mip_levels[textures[texidx].mip_offset];
 
     // Get width, height of levels
@@ -121,13 +123,16 @@ float4 Texture_Sample2DNoMip(float2 uv, TEXTURE_ARG_LIST_IDX(texidx))
         return make_float4(0.f, 0.f, 0.f, 0.f);
     }
     }
+*/
 }
 
 /// Sample 2D texture
 inline
 float4 Texture_Sample2D(DifferentialGeometry const *diffgeo, TEXTURE_ARG_LIST_IDX(texidx))
 {
-    // If texture has no mipmaps or derivatives are zero
+    return make_float4(1, 0, 0, 0);
+/*
+// If texture has no mipmaps or derivatives are zero
     if (textures[texidx].mip_count == 1 || dot(diffgeo->duvdx, diffgeo->duvdx) * dot(diffgeo->duvdy, diffgeo->duvdy) == 0.0f)
     {
         return Texture_Sample2DNoMip(diffgeo->uv, TEXTURE_ARGS_IDX(texidx));
@@ -268,7 +273,7 @@ float4 Texture_Sample2D(DifferentialGeometry const *diffgeo, TEXTURE_ARG_LIST_ID
         return make_float4(0.f, 0.f, 0.f, 0.f);
     }
     }
-
+*/
 }
 
 /// Sample lattitue-longitude environment map using 3d vector
@@ -378,7 +383,9 @@ inline float3 TextureData_SampleNormalFromBump_float4(__global float4 const* myd
 inline
 float3 Texture_SampleBumpNoMip(float2 uv, TEXTURE_ARG_LIST_IDX(texidx))
 {
-    MipLevel texture_level = mip_levels[textures[texidx].mip_offset];
+    return make_float3(1, 0, 0);
+/*
+MipLevel texture_level = mip_levels[textures[texidx].mip_offset];
 
     // Get width, height of levels
     int w = texture_level.w;
@@ -454,12 +461,15 @@ float3 Texture_SampleBumpNoMip(float2 uv, TEXTURE_ARG_LIST_IDX(texidx))
         return make_float3(0.f, 0.f, 0.f);
     }
     }
+*/
 }
 
 /// Sample bump texture
 inline
 float3 Texture_SampleBump(DifferentialGeometry const *diffgeo, TEXTURE_ARG_LIST_IDX(texidx))
 {
+    return make_float3(1, 0, 0);
+/*
     // If texture has no mipmaps or derivatives are zero
     if (textures[texidx].mip_count == 1 || dot(diffgeo->duvdx, diffgeo->duvdx) * dot(diffgeo->duvdy, diffgeo->duvdy) == 0.0f)
     {
@@ -593,6 +603,7 @@ float3 Texture_SampleBump(DifferentialGeometry const *diffgeo, TEXTURE_ARG_LIST_
         return make_float3(0.f, 0.f, 0.f);
     }
     }
+*/
 }
 
 #endif // TEXTURE_CL

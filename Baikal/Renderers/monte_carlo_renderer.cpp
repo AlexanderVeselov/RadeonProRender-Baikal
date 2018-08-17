@@ -272,8 +272,8 @@ namespace Baikal
 
         auto argc = 0U;
         fill_kernel.SetArg(argc++, m_estimator->GetRayBuffer());
-        fill_kernel.SetArg(argc++, m_estimator->GetAuxRayXBuffer());
-        fill_kernel.SetArg(argc++, m_estimator->GetAuxRayYBuffer());
+        //fill_kernel.SetArg(argc++, m_estimator->GetAuxRayXBuffer());
+        //fill_kernel.SetArg(argc++, m_estimator->GetAuxRayYBuffer());
         fill_kernel.SetArg(argc++, m_estimator->GetFirstHitBuffer());
         fill_kernel.SetArg(argc++, m_estimator->GetOutputIndexBuffer());
         fill_kernel.SetArg(argc++, m_estimator->GetRayCountBuffer());
@@ -358,8 +358,8 @@ namespace Baikal
         genkernel.SetArg(argc++, (int)rand_uint());
         genkernel.SetArg(argc++, m_sample_counter);
         genkernel.SetArg(argc++, m_estimator->GetRayBuffer());
-        genkernel.SetArg(argc++, m_estimator->GetAuxRayXBuffer());
-        genkernel.SetArg(argc++, m_estimator->GetAuxRayYBuffer());
+        //genkernel.SetArg(argc++, m_estimator->GetAuxRayXBuffer());
+        //genkernel.SetArg(argc++, m_estimator->GetAuxRayYBuffer());
         genkernel.SetArg(argc++, m_estimator->GetRandomBuffer(Estimator::RandomBufferType::kRandomSeed));
         genkernel.SetArg(argc++, m_estimator->GetRandomBuffer(Estimator::RandomBufferType::kSobolLUT));
 

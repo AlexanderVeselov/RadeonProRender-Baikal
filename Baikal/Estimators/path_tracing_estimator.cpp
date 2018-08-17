@@ -380,8 +380,8 @@ namespace Baikal
         // Set kernel parameters
         int argc = 0;
         shadekernel.SetArg(argc++, m_render_data->rays[pass & 0x1]);
-        shadekernel.SetArg(argc++, m_render_data->aux_rays_x[pass & 0x1]);
-        shadekernel.SetArg(argc++, m_render_data->aux_rays_y[pass & 0x1]);
+        //shadekernel.SetArg(argc++, m_render_data->aux_rays_x[pass & 0x1]);
+        //shadekernel.SetArg(argc++, m_render_data->aux_rays_y[pass & 0x1]);
         shadekernel.SetArg(argc++, m_render_data->intersections);
         shadekernel.SetArg(argc++, m_render_data->compacted_indices);
         shadekernel.SetArg(argc++, m_render_data->pixelindices[pass & 0x1]);
@@ -394,7 +394,7 @@ namespace Baikal
         shadekernel.SetArg(argc++, scene.shapes);
         shadekernel.SetArg(argc++, scene.material_attributes);
         shadekernel.SetArg(argc++, scene.textures);
-        shadekernel.SetArg(argc++, scene.mip_levels);
+        //shadekernel.SetArg(argc++, scene.mip_levels);
         shadekernel.SetArg(argc++, scene.texturedata);
         shadekernel.SetArg(argc++, scene.envmapidx);
         shadekernel.SetArg(argc++, scene.lights);
@@ -410,8 +410,8 @@ namespace Baikal
         shadekernel.SetArg(argc++, m_render_data->lightsamples);
         shadekernel.SetArg(argc++, m_render_data->paths);
         shadekernel.SetArg(argc++, m_render_data->rays[(pass + 1) & 0x1]);
-        shadekernel.SetArg(argc++, m_render_data->aux_rays_x[(pass + 1) & 0x1]);
-        shadekernel.SetArg(argc++, m_render_data->aux_rays_y[(pass + 1) & 0x1]);
+        //shadekernel.SetArg(argc++, m_render_data->aux_rays_x[(pass + 1) & 0x1]);
+        //shadekernel.SetArg(argc++, m_render_data->aux_rays_y[(pass + 1) & 0x1]);
         shadekernel.SetArg(argc++, output);
         shadekernel.SetArg(argc++, scene.input_map_data);
 
@@ -449,7 +449,7 @@ namespace Baikal
         shadekernel.SetArg(argc++, scene.shapes);
         shadekernel.SetArg(argc++, scene.material_attributes);
         shadekernel.SetArg(argc++, scene.textures);
-        shadekernel.SetArg(argc++, scene.mip_levels);
+        //shadekernel.SetArg(argc++, scene.mip_levels);
         shadekernel.SetArg(argc++, scene.texturedata);
         shadekernel.SetArg(argc++, scene.envmapidx);
         shadekernel.SetArg(argc++, scene.lights);
@@ -495,7 +495,7 @@ namespace Baikal
         sample_kernel.SetArg(argc++, m_render_data->hitcount);
         sample_kernel.SetArg(argc++, scene.volumes);
         sample_kernel.SetArg(argc++, scene.textures);
-        sample_kernel.SetArg(argc++, scene.mip_levels);
+        //sample_kernel.SetArg(argc++, scene.mip_levels);
         sample_kernel.SetArg(argc++, scene.texturedata);
         sample_kernel.SetArg(argc++, rand_uint());
         sample_kernel.SetArg(argc++, m_render_data->random);
@@ -535,7 +535,7 @@ namespace Baikal
         misskernel.SetArg(argc++, scene.lights);
         misskernel.SetArg(argc++, scene.envmapidx);
         misskernel.SetArg(argc++, scene.textures);
-        misskernel.SetArg(argc++, scene.mip_levels);
+//        misskernel.SetArg(argc++, scene.mip_levels);
         misskernel.SetArg(argc++, scene.texturedata);
         misskernel.SetArg(argc++, m_render_data->paths);
         misskernel.SetArg(argc++, scene.volumes);
@@ -586,9 +586,9 @@ namespace Baikal
         // Fetch kernel
         auto volumekernel = m_uberv2_kernels.GetKernel("ApplyVolumeTransmissionUberV2");
 
-        auto output_indices = use_output_indices ? m_render_data->output_indices : m_render_data->iota;
+auto output_indices = use_output_indices ? m_render_data->output_indices : m_render_data->iota;
 
-        // Set kernel parameters
+// Set kernel parameters
         int argc = 0;
         volumekernel.SetArg(argc++, m_render_data->pixelindices[pass & 0x1]);
         volumekernel.SetArg(argc++, output_indices);
@@ -725,7 +725,7 @@ namespace Baikal
         misskernel.SetArg(argc++, scene.num_lights);
         misskernel.SetArg(argc++, scene.envmapidx);
         misskernel.SetArg(argc++, scene.textures);
-        misskernel.SetArg(argc++, scene.mip_levels);
+        //misskernel.SetArg(argc++, scene.mip_levels);
         misskernel.SetArg(argc++, scene.texturedata);
         misskernel.SetArg(argc++, m_render_data->paths);
         misskernel.SetArg(argc++, scene.volumes);

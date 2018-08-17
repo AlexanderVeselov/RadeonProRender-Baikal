@@ -228,8 +228,8 @@ KERNEL void ShadeVolumeUberV2(
 KERNEL void ShadeSurfaceUberV2(
     // Ray batch
     GLOBAL ray const* restrict rays,
-    GLOBAL aux_ray const* restrict aux_rays_x,
-    GLOBAL aux_ray const* restrict aux_rays_y,
+    //GLOBAL aux_ray const* restrict aux_rays_x,
+    //GLOBAL aux_ray const* restrict aux_rays_y,
     // Intersection data
     GLOBAL Intersection const* restrict isects,
     // Hit indices
@@ -282,8 +282,8 @@ KERNEL void ShadeSurfaceUberV2(
     GLOBAL Path* restrict paths,
     // Indirect rays
     GLOBAL ray* restrict indirect_rays,
-    GLOBAL aux_ray* restrict indirect_aux_rays_x,
-    GLOBAL aux_ray* restrict indirect_aux_rays_y,
+    //GLOBAL aux_ray* restrict indirect_aux_rays_x,
+    //GLOBAL aux_ray* restrict indirect_aux_rays_y,
     // Radiance
     GLOBAL float3* restrict output,
     GLOBAL InputMapData const* restrict input_map_values
@@ -341,12 +341,12 @@ KERNEL void ShadeSurfaceUberV2(
         // Fill surface data
         DifferentialGeometry diffgeo;
         Scene_FillDifferentialGeometry(&scene, &isect, &diffgeo);
-
+/*
         if (!Path_IsGlossy(path))
         {
             DifferentialGeometry_CalculateScreenSpaceUVDerivatives(&diffgeo, aux_rays_x + hit_idx, aux_rays_y + hit_idx);
         }
-
+*/
         // Check if we are hitting from the inside
         float ngdotwi = dot(diffgeo.ng, wi);
         bool backfacing = ngdotwi < 0.f;
@@ -436,7 +436,7 @@ KERNEL void ShadeSurfaceUberV2(
         // Sample bxdf
         const float2 sample = Sampler_Sample2D(&sampler, SAMPLER_ARGS);
         float3 bxdf = UberV2_Sample(&diffgeo, wi, TEXTURE_ARGS, sample, &bxdfwo, &bxdf_pdf, &uber_shader_data);
-
+/*
         // Compute secondary auxiliary rays for singular reflected/refracted rays
         // Glossy reflections/refractions don't need texture antialiasing
         if (!Bxdf_IsSingular(&diffgeo))
@@ -463,7 +463,7 @@ KERNEL void ShadeSurfaceUberV2(
                 indirect_aux_rays_y[global_id] = aux_rays_y[hit_idx];
             }
         }
-
+*/
         // If we have light to sample we can hopefully do mis
         if (light_idx > -1)
         {

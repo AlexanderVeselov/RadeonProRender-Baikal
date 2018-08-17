@@ -54,9 +54,9 @@ void PerspectiveCamera_GeneratePaths(
     // Rays to generate
     GLOBAL ray* restrict rays,
     // Auxiliary rays to generate in x dimension
-    GLOBAL aux_ray* restrict aux_rays_x,
+    //GLOBAL aux_ray* restrict aux_rays_x,
     // Auxiliary rays to generate in y dimension
-    GLOBAL aux_ray* restrict aux_rays_y,
+    //GLOBAL aux_ray* restrict aux_rays_y,
     // RNG data
     GLOBAL uint* restrict random,
     GLOBAL uint const* restrict sobol_mat
@@ -125,7 +125,7 @@ void PerspectiveCamera_GeneratePaths(
 
         Ray_SetExtra(my_ray, 1.f);
         Ray_SetMask(my_ray, VISIBILITY_MASK_PRIMARY);
-
+/*
         // Calculate auxiliary rays
         float2 aux_img_sample = img_sample + make_float2(1.0f, 1.0f) / output_size;
 
@@ -143,7 +143,7 @@ void PerspectiveCamera_GeneratePaths(
         Aux_Ray_Init(my_aux_ray_y, my_ray->o.xyz,
             normalize(camera->focal_length * camera->forward
                 + c_sample.x * camera->right + aux_c_sample.y * camera->up));
-
+*/
     }
 }
 
@@ -166,9 +166,9 @@ KERNEL void PerspectiveCameraDof_GeneratePaths(
     // Rays to generate
     GLOBAL ray* restrict rays,
     // Auxiliary rays to generate in x dimension
-    GLOBAL aux_ray* restrict aux_rays_x,
+    //GLOBAL aux_ray* restrict aux_rays_x,
     // Auxiliary rays to generate in y dimension
-    GLOBAL aux_ray* restrict aux_rays_y,
+    //GLOBAL aux_ray* restrict aux_rays_y,
     // RNG data
     GLOBAL uint* restrict random,
     GLOBAL uint const* restrict sobol_mat
@@ -245,7 +245,7 @@ KERNEL void PerspectiveCameraDof_GeneratePaths(
 
         Ray_SetExtra(my_ray, 1.f);
         Ray_SetMask(my_ray, VISIBILITY_MASK_PRIMARY);
-
+/*
         // Calculate auxiliary rays
         float2 aux_img_sample = img_sample + make_float2(1.0f, 1.0f) / output_size;
 
@@ -268,7 +268,7 @@ KERNEL void PerspectiveCameraDof_GeneratePaths(
         Aux_Ray_Init(my_aux_ray_y, my_ray->o.xyz,
             normalize(camera->forward * camera->focus_distance +
                 camera->right * camera_dir.x + camera->up * aux_camera_dir.y));
-
+*/
     }
 }
 
@@ -843,9 +843,9 @@ void OrthographicCamera_GeneratePaths(
     // Rays to generate
     GLOBAL ray* restrict rays,
     // Auxiliary rays to generate in x dimension
-    GLOBAL aux_ray* restrict aux_rays_x,
+    //GLOBAL aux_ray* restrict aux_rays_x,
     // Auxiliary rays to generate in y dimension
-    GLOBAL aux_ray* restrict aux_rays_y,
+    //GLOBAL aux_ray* restrict aux_rays_y,
     // RNG data
     GLOBAL uint* restrict random,
     GLOBAL uint const* restrict sobol_mat
@@ -913,7 +913,7 @@ void OrthographicCamera_GeneratePaths(
 
         Ray_SetExtra(my_ray, 1.f);
         Ray_SetMask(my_ray, VISIBILITY_MASK_PRIMARY);
-
+/*
         // Calculate auxiliary rays
         float2 aux_img_sample = img_sample + make_float2(1.0f, 1.0f) / output_size;
 
@@ -932,7 +932,7 @@ void OrthographicCamera_GeneratePaths(
 
         Aux_Ray_Init(my_aux_ray_y, camera->p + c_sample.x
             * camera->right + aux_c_sample.y * camera->up, my_ray->d.xyz);
-
+*/
     }
 }
 
