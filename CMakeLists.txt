@@ -69,6 +69,7 @@ if (BAIKAL_ENABLE_IO)
         find_package(FBX_SDK REQUIRED)
     endif (BAIKAL_ENABLE_FBX)
     add_subdirectory(BaikalIO)
+    add_subdirectory(RprIO)
 endif (BAIKAL_ENABLE_IO)
 
 if (BAIKAL_ENABLE_RPR)

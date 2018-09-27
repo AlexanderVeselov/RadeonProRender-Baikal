@@ -28,6 +28,7 @@ THE SOFTWARE.
 #include "SceneGraph/material.h"
 #include "image_io.h"
 #include "SceneGraph/iterator.h"
+#include "SceneGraph/inputmaps.h"
 #include "WrapObject/Materials/MaterialObject.h"
 #include "WrapObject/Exception.h"
 
@@ -389,13 +390,26 @@ void MaterialObject::GetInput(int i, void* out, size_t* out_size)
     {
         Material::Ptr mat = GetMaterial();
         *out_size = sizeof(RadeonRays::float4);
+
         Baikal::Material::InputValue value = mat->GetInputValue(trans_name);
-        if (value.type != Baikal::Material::InputType::kFloat4)
+
+        RadeonRays::float4 out_value;
+        if (value.input_map_value->m_type == Baikal::InputMap::InputMapType::kConstantFloat)
+        {
+            auto float_map = std::static_pointer_cast<Baikal::InputMap_ConstantFloat>(value.input_map_value);
+            out_value.x = out_value.y = out_value.z = out_value.w = float_map->GetValue();
+        }
+        else if (value.input_map_value->m_type == Baikal::InputMap::InputMapType::kConstantFloat3)
+        {
+            auto float_map = std::static_pointer_cast<Baikal::InputMap_ConstantFloat3>(value.input_map_value);
+            out_value = float_map->GetValue();
+        }
+        else
         {
             throw Exception(RPR_ERROR_INTERNAL_ERROR, "MaterialObject: material input type is unexpected.");
         }
 
-        memcpy(out, &value.float_value, *out_size);
+        memcpy(out, &out_value, *out_size);
     }
     //images, textures and materials
     else
