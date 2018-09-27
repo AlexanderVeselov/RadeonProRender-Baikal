@@ -847,7 +847,7 @@ TEST_F(BasicTest, Basic_RprIO)
 {
     ASSERT_EQ(rprContextCreateMaterialSystem(m_context, 0, &m_matsys), RPR_SUCCESS);
     ASSERT_EQ(rprLoadScene("../../Scenes/mtltest/mtltest.obj", "../../Scenes/mtltest/", m_context, m_matsys, nullptr, &m_scene), RPR_SUCCESS);
-    //ASSERT_EQ(rprSaveSceneMaterials("../../Scenes/mtltest/materials.xml", "../../Scenes/mtltest/mapping.xml", "../../Scenes/mtltest/", m_context, m_matsys, m_scene), RPR_SUCCESS);
+    ASSERT_EQ(rprSaveSceneMaterials("../../Scenes/mtltest/materials.xml", "../../Scenes/mtltest/mapping.xml", "../../Scenes/mtltest/", m_context, m_matsys, m_scene), RPR_SUCCESS);
     CreateCamera();
 
     ASSERT_EQ(rprCameraLookAt(m_camera, 20.0f, 20.0f, 40.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f), RPR_SUCCESS);

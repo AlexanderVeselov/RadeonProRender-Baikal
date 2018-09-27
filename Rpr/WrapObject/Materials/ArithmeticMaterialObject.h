@@ -34,6 +34,8 @@ public:
     void SetInputF(const std::string& input_name, const RadeonRays::float4& val) override;
     Baikal::Material::Ptr GetMaterial() override;
     Baikal::InputMap::Ptr GetInputMap();
+    void GetInput(int i, void* out, size_t* out_size) override;
+
 
 protected:
     void Update(MaterialObject* mat) override;
@@ -41,6 +43,7 @@ protected:
     void SetInputTexture(const std::string& input_name, TextureMaterialObject* input) override;
     void SetInputU(const std::string& input_name, rpr_uint val) override;
     void SetInputMap(const std::string& input_name, Baikal::InputMap::Ptr input_map);
+    RadeonRays::float3 GetFloat3Value(const std::string& input_name);
 
 private:
     Baikal::InputMap::Ptr m_input_map;

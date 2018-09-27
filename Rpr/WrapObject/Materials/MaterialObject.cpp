@@ -388,10 +388,18 @@ void MaterialObject::GetInput(int i, void* out, size_t* out_size)
     //means no MaterialObject connected
     if (!it->second)
     {
-        Material::Ptr mat = GetMaterial();
+        Baikal::Material::InputValue value;
+        if (IsArithmetic())
+        {
+            InputMap::Ptr input_map = static_cast<ArithmeticMaterialObject*>(this)->GetInputMap();
+        }
+        else
+        {
+            Material::Ptr mat = GetMaterial();
+            value = mat->GetInputValue(trans_name);
+        }
         *out_size = sizeof(RadeonRays::float4);
 
-        Baikal::Material::InputValue value = mat->GetInputValue(trans_name);
 
         RadeonRays::float4 out_value;
         if (value.input_map_value->m_type == Baikal::InputMap::InputMapType::kConstantFloat)

@@ -195,9 +195,12 @@ inline rpr_int SceneIo::Loader::CreateTextureNode(rpr_char const* filename, rpr_
         status = rprMaterialSystemCreateNode(material_system, RPR_MATERIAL_NODE_ARITHMETIC, &gamma_power_node);
         RETURN_IF_FAILED(status);
         status = rprMaterialNodeSetInputU(gamma_power_node, "op", RPR_MATERIAL_NODE_OP_POW);
+        RETURN_IF_FAILED(status);
         status = rprMaterialNodeSetInputN(gamma_power_node, "color0", texture_node);
+        RETURN_IF_FAILED(status);
         static constexpr float gamma_power = 1.0f / 2.2f;
         status = rprMaterialNodeSetInputF(gamma_power_node, "color1", gamma_power, gamma_power, gamma_power, gamma_power);
+        RETURN_IF_FAILED(status);
 
         *out_node = gamma_power_node;
 

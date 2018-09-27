@@ -394,3 +394,220 @@ void ArithmeticMaterialObject::SetInputMap(const std::string& input_name, Baikal
             throw Exception(RPR_ERROR_INTERNAL_ERROR, "Unsupported input map type");
     }
 }
+
+RadeonRays::float3 ArithmeticMaterialObject::GetFloat3Value(const std::string& input_name)
+{
+    // get number from string "colorN"
+    int position = input_name[5] - '0';
+    if (position < 0 || position > 3)
+    {
+        throw Exception(RPR_ERROR_INTERNAL_ERROR, "Invalid input");
+    }
+
+    auto GetFloat3ValueHelperFunc = [](InputMap::Ptr input)
+    {
+        if (input->m_type == InputMap::InputMapType::kConstantFloat3)
+        {
+            InputMap_ConstantFloat3::Ptr float3_map = std::static_pointer_cast<InputMap_ConstantFloat3>(input);
+            return float3_map->GetValue();
+        }
+        else if (input->m_type == InputMap::InputMapType::kConstantFloat)
+        {
+            InputMap_ConstantFloat::Ptr float_map = std::static_pointer_cast<InputMap_ConstantFloat>(input);
+            float float_value = float_map->GetValue();
+            return RadeonRays::float3(float_value, float_value, float_value, float_value);
+        }
+        else
+        {
+            throw Exception(RPR_ERROR_INTERNAL_ERROR, "Invalid input");
+        }
+    };
+
+    switch (m_input_map->m_type)
+    {
+        // Two inputs
+    case InputMap::InputMapType::kAdd:
+    case InputMap::InputMapType::kSub:
+    case InputMap::InputMapType::kMul:
+    case InputMap::InputMapType::kDiv:
+    case InputMap::InputMapType::kMin:
+    case InputMap::InputMapType::kMax:
+    case InputMap::InputMapType::kDot3:
+    case InputMap::InputMapType::kDot4:
+    case InputMap::InputMapType::kCross3:
+    case InputMap::InputMapType::kCross4:
+    case InputMap::InputMapType::kPow:
+    case InputMap::InputMapType::kMod:
+    {
+        //It's safe since all this types differs only in id value
+        InputMap_Add *i = static_cast<InputMap_Add*>(m_input_map.get());
+        if (position == 0)
+        {
+            return GetFloat3ValueHelperFunc(i->GetA());
+        }
+        else if (position == 1)
+        {
+            return GetFloat3ValueHelperFunc(i->GetB());
+        }
+        else
+        {
+            throw Exception(RPR_ERROR_INTERNAL_ERROR, "Invalid input");
+        }
+        break;
+    }
+    //Single input
+    case InputMap::InputMapType::kSin:
+    case InputMap::InputMapType::kCos:
+    case InputMap::InputMapType::kTan:
+    case InputMap::InputMapType::kAsin:
+    case InputMap::InputMapType::kAcos:
+    case InputMap::InputMapType::kAtan:
+    case InputMap::InputMapType::kLength3:
+    case InputMap::InputMapType::kNormalize3:
+    case InputMap::InputMapType::kFloor:
+    case InputMap::InputMapType::kAbs:
+    {
+        //It's safe since all this types differs only in id value
+        InputMap_Sin *i = static_cast<InputMap_Sin*>(m_input_map.get());
+        if (position == 0)
+        {
+            return GetFloat3ValueHelperFunc(i->GetArg());
+        }
+        else
+        {
+            throw Exception(RPR_ERROR_INTERNAL_ERROR, "Invalid input");
+        }
+        break;
+    }
+
+    // Specials
+    case InputMap::InputMapType::kLerp:
+    {
+        InputMap_Lerp *i = static_cast<InputMap_Lerp*>(m_input_map.get());
+        if (position == 0)
+        {
+            return GetFloat3ValueHelperFunc(i->GetA());
+        }
+        else if (position == 1)
+        {
+            return GetFloat3ValueHelperFunc(i->GetB());
+        }
+        else
+        {
+            throw Exception(RPR_ERROR_INTERNAL_ERROR, "Invalid input");
+        }
+
+        break;
+    }
+    case InputMap::InputMapType::kSelect:
+    {
+        InputMap_Select *i = static_cast<InputMap_Select*>(m_input_map.get());
+        if (position == 0)
+        {
+            return GetFloat3ValueHelperFunc(i->GetArg());
+        }
+        else
+        {
+            throw Exception(RPR_ERROR_INTERNAL_ERROR, "Invalid input");
+        }
+
+        break;
+    }
+    case InputMap::InputMapType::kShuffle:
+    {
+        InputMap_Shuffle *i = static_cast<InputMap_Shuffle*>(m_input_map.get());
+        if (position == 0)
+        {
+            return GetFloat3ValueHelperFunc(i->GetArg());
+        }
+        else
+        {
+            throw Exception(RPR_ERROR_INTERNAL_ERROR, "Invalid input");
+        }
+
+        break;
+    }
+    case InputMap::InputMapType::kShuffle2:
+    {
+        InputMap_Shuffle2 *i = static_cast<InputMap_Shuffle2*>(m_input_map.get());
+
+        if (position == 0)
+        {
+            return GetFloat3ValueHelperFunc(i->GetA());
+        }
+        else if (position == 1)
+        {
+            return GetFloat3ValueHelperFunc(i->GetB());
+        }
+        else
+        {
+            throw Exception(RPR_ERROR_INTERNAL_ERROR, "Invalid input");
+        }
+
+        break;
+    }
+    case InputMap::InputMapType::kMatMul:
+    {
+        InputMap_MatMul *i = static_cast<InputMap_MatMul*>(m_input_map.get());
+
+        if (position == 3) // value is color3
+        {
+            return GetFloat3ValueHelperFunc(i->GetArg());
+        }
+
+        break;
+    }
+    default:
+        throw Exception(RPR_ERROR_INTERNAL_ERROR, "Unsupported input map type");
+    }
+
+    return float3();
+}
+
+rpr_uint ToRprInputType(InputMap::InputMapType type)
+{
+    return 0;
+}
+
+void ArithmeticMaterialObject::GetInput(int i, void* out, size_t* out_size)
+{
+    //get i input
+    auto it = m_inputs.begin();
+    for (int index = 0; it != m_inputs.end(); ++it, ++index)
+        if (index == i)
+        {
+            break;
+        }
+
+    if (it == m_inputs.end()) return;
+    //translated name
+    std::string trans_name = TranslatePropName(it->first);
+    //means no MaterialObject connected
+    if (!it->second)
+    {
+        InputMap::Ptr input_map = GetInputMap();
+        if (it->first == "op")
+        {
+            // TODO
+            rpr_uint converted_type = ToRprInputType(input_map->m_type);
+
+            *out_size = sizeof(converted_type);
+            memcpy(out, &converted_type, *out_size);
+        }
+        else
+        {
+            RadeonRays::float3 float3_value = GetFloat3Value(it->first);
+
+            *out_size = sizeof(float3_value);
+            memcpy(out, &float3_value, *out_size);
+        }
+
+    }
+    //images, textures and materials
+    else
+    {
+        *out_size = sizeof(rpr_material_node);
+        memcpy(out, &it->second, *out_size);
+    }
+}
+

@@ -330,58 +330,6 @@ rpr_int MaterialIo::SaveMaterialsFromScene(rpr_char const* filename, rpr_scene s
     status = SaveMaterials(filename, materials);
     RETURN_IF_FAILED(status);
 
-    //auto shape_iter = scene.CreateShapeIterator();
-
-    //Collector mat_collector;
-    //// Collect materials from shapes first
-    //mat_collector.Collect(*shape_iter,
-    //// This function adds all materials to resulting map
-    //// recursively via Material dependency API
-    //[](SceneObject::Ptr item) -> std::set<SceneObject::Ptr>
-    //{
-    //    // Resulting material set
-    //    std::set<SceneObject::Ptr> mats;
-    //    // Material stack
-    //    std::stack<Material::Ptr> material_stack;
-
-    //    // Get material from current shape
-    //    auto shape = std::static_pointer_cast<Shape>(item);
-    //    auto material = shape->GetMaterial();
-
-    //    if (material)
-    //    {
-    //        // Push to stack as an initializer
-    //        material_stack.push(material);
-    //    }
-
-    //    // Drain the stack
-    //    while (!material_stack.empty())
-    //    {
-    //        // Get current material
-    //        auto m = material_stack.top();
-    //        material_stack.pop();
-
-    //        // Emplace into the set
-    //        mats.emplace(m);
-
-    //        // Create dependency iterator
-    //        std::unique_ptr<Iterator> mat_iter = m->CreateMaterialIterator();
-
-    //        // Push all dependencies into the stack
-    //        for (; mat_iter->IsValid(); mat_iter->Next())
-    //        {
-    //            material_stack.push(mat_iter->ItemAs<Material>());
-    //        }
-    //    }
-
-    //    // Return resulting set
-    //    return mats;
-    //});
-
-    //auto mat_iter = mat_collector.CreateIterator();
-
-    //SaveMaterials(filename, *mat_iter);
-
     return RPR_SUCCESS;
 }
 
@@ -489,14 +437,22 @@ rpr_int MaterialIoXML::WriteInputMap(XMLPrinter& printer, const rpr_material_nod
     {
         // Can't get name of float input in rpr layer
         printer.PushAttribute("name", "");
-        printer.PushAttribute("id", m_current_input_index++);
-
-        // Type: 0 — kConstantFloat3 (to save compatibility)
-        printer.PushAttribute("type", 0);
+        auto HashFloat4 = [](rpr_float value[4])
+        {
+            std::ostringstream oss;
+            oss << value[0] << value[1] << value[2] << value[3];
+            std::hash<std::string> hash_fn;
+            return static_cast<std::int64_t>(hash_fn(oss.str()));
+        };
 
         rpr_float value[4];
         status = rprMaterialNodeGetInputInfo(material, input_index, RPR_MATERIAL_NODE_INPUT_VALUE, sizeof(value), value, nullptr);
         RETURN_IF_FAILED(status);
+
+        printer.PushAttribute("id", HashFloat4(value));
+
+        // Type: 0 — kConstantFloat3 (to save compatibility)
+        printer.PushAttribute("type", 0);
         printer.PushAttribute("value", Float4ToString(value).c_str());
         printer.CloseElement();
 
@@ -516,7 +472,7 @@ rpr_int MaterialIoXML::WriteInputMap(XMLPrinter& printer, const rpr_material_nod
         status = rprMaterialNodeGetInfo(input_node, RPR_OBJECT_NAME, sizeof(input_name), input_name, nullptr);
         RETURN_IF_FAILED(status);
         printer.PushAttribute("name", input_name);
-        printer.PushAttribute("id", m_current_input_index++);
+        printer.PushAttribute("id", reinterpret_cast<std::int64_t>(input_node));
 
         switch (node_type)
         {
@@ -543,13 +499,39 @@ rpr_int MaterialIoXML::WriteInputMap(XMLPrinter& printer, const rpr_material_nod
             // TODO: tex2name map
             // TODO: make image loaders to set only relative paths to names
             printer.PushAttribute("value", image_name);
-            printer.CloseElement();
 
             break;
         }
         case RPR_MATERIAL_NODE_ARITHMETIC:
-            assert(!"Arithmetic material nodes are not implemented");
+        {
+            //rpr_int input_count = 0;
+            //status = rprMaterialNodeGetInfo(input_node, RPR_MATERIAL_NODE_INPUT_COUNT, sizeof(input_count), &input_count, nullptr);
+            //RETURN_IF_FAILED(status);
+
+            //for (rpr_int i = 0; i < input_count; ++i)
+            //{
+            //    rpr_char child_name[64];
+            //    status = rprMaterialNodeGetInputInfo(input_node, i, RPR_MATERIAL_NODE_INPUT_NAME_STRING, sizeof(child_name), child_name, nullptr);
+
+            //    if (strcmp(child_name, "op") == 0)
+            //    {
+            //        rpr_int op_type;
+            //        status = rprMaterialNodeGetInputInfo(input_node, i, RPR_MATERIAL_NODE_INPUT_VALUE, sizeof(op_type), &op_type, nullptr);
+            //        RETURN_IF_FAILED(status);
+
+            //    }
+            //    else
+            //    {
+            //        // Write child node
+            //    //    status = WriteInputMap(printer, input_node, i);
+            //    //    RETURN_IF_FAILED(status);
+
+            //    //    printer.PushAttribute(child_name, );
+            //    }
+            //    //printer.CloseElement();
+            //}
             break;
+        }
         case RPR_MATERIAL_NODE_UBERV2:
             assert(!"UberV2 material node cannot be set as input");
             break;
@@ -717,6 +699,7 @@ rpr_int MaterialIoXML::WriteInputMap(XMLPrinter& printer, const rpr_material_nod
     //    }
     //}
 
+    printer.CloseElement();
     return RPR_SUCCESS;
 }
 //

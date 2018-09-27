@@ -124,6 +124,8 @@ protected:
     virtual void SetInputImage(const std::string& input_name, ImageMaterialObject* input);
     virtual void SetInputF(const std::string& input_name, const RadeonRays::float4& val);
     virtual void SetInputU(const std::string& input_name, rpr_uint val);
+    //input material + RPR input name. Required for rprMaterialGet* methods.
+    std::map<std::string, MaterialObject*> m_inputs;
 private:
 
     //handle input materials, it need for correct rprMaterialGet* methods.
@@ -141,6 +143,4 @@ private:
     Type m_type;
     //output materials
     std::set<MaterialObject*> m_out_mats;
-    //input material + RPR input name. Required for rprMaterialGet* methods.
-    std::map<std::string, MaterialObject*> m_inputs;
 };
