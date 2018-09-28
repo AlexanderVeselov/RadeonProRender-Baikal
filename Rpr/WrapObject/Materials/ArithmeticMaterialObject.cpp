@@ -88,6 +88,8 @@ void ArithmeticMaterialObject::SetInputU(const std::string& input_name, rpr_uint
             throw Exception(RPR_ERROR_INTERNAL_ERROR, "Arithmetic field \"op\" can not be set twice");
         }
 
+        m_operation = val;
+
         switch (val)
         {
         case RPR_MATERIAL_NODE_OP_ADD:
@@ -564,11 +566,6 @@ RadeonRays::float3 ArithmeticMaterialObject::GetFloat3Value(const std::string& i
     return float3();
 }
 
-rpr_uint ToRprInputType(InputMap::InputMapType type)
-{
-    return 0;
-}
-
 void ArithmeticMaterialObject::GetInput(int i, void* out, size_t* out_size)
 {
     //get i input
@@ -588,11 +585,8 @@ void ArithmeticMaterialObject::GetInput(int i, void* out, size_t* out_size)
         InputMap::Ptr input_map = GetInputMap();
         if (it->first == "op")
         {
-            // TODO
-            rpr_uint converted_type = ToRprInputType(input_map->m_type);
-
-            *out_size = sizeof(converted_type);
-            memcpy(out, &converted_type, *out_size);
+            *out_size = sizeof(m_operation);
+            memcpy(out, &m_operation, *out_size);
         }
         else
         {

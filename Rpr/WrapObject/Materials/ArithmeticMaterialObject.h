@@ -47,4 +47,5 @@ protected:
 
 private:
     Baikal::InputMap::Ptr m_input_map;
+    rpr_material_node_arithmetic_operation m_operation;
 };
