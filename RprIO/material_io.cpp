@@ -137,12 +137,12 @@ rpr_int MaterialIoXML::WriteMaterial(XMLPrinter& printer, const rpr_material_nod
     rpr_uint refraction_ior_mode = 0;
     status = rprMaterialNodeGetInputInfo(material, RPR_UBER_MATERIAL_REFRACTION_IOR_MODE, RPR_MATERIAL_NODE_INPUT_VALUE, 0, &refraction_ior_mode, nullptr);
     RETURN_IF_FAILED(status);
-    printer.PushAttribute("refraction_link_ior", refraction_ior_mode);
+    printer.PushAttribute("refraction_link_ior", refraction_ior_mode == RPR_UBER_MATERIAL_REFRACTION_MODE_LINKED);
 
     rpr_uint emission_mode = 0;
     status = rprMaterialNodeGetInputInfo(material, RPR_UBER_MATERIAL_EMISSION_MODE, RPR_MATERIAL_NODE_INPUT_VALUE, 0, &emission_mode, nullptr);
     RETURN_IF_FAILED(status);
-    printer.PushAttribute("emission_doublesided", emission_mode);
+    printer.PushAttribute("emission_doublesided", emission_mode == RPR_UBER_MATERIAL_EMISSION_MODE_DOUBLESIDED);
 
     rpr_uint sss_multiscatter = 0;
     status = rprMaterialNodeGetInputInfo(material, RPR_UBER_MATERIAL_SSS_MULTISCATTER, RPR_MATERIAL_NODE_INPUT_VALUE, 0, &sss_multiscatter, nullptr);
