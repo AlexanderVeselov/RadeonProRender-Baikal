@@ -25,7 +25,7 @@ class MaterialIoXML : public MaterialIo
 {
 public:
     rpr_int LoadMaterials(rpr_char const* filename, std::vector<rpr_material_node> & materials) override;
-    rpr_int SaveMaterials(rpr_char const* filename, std::vector<rpr_material_node> const& materials) override;
+    rpr_int SaveMaterials(rpr_char const* filename, std::set<rpr_material_node> const& materials) override;
 
 private:
     // Write single material
@@ -181,7 +181,7 @@ rpr_int MaterialIoXML::WriteMaterial(XMLPrinter& printer, const rpr_material_nod
     return RPR_SUCCESS;
 }
 
-rpr_int MaterialIoXML::SaveMaterials(rpr_char const* filename, std::vector<rpr_material_node> const& materials)
+rpr_int MaterialIoXML::SaveMaterials(rpr_char const* filename, std::set<rpr_material_node> const& materials)
 {
     //std::string fname(filename);
     //auto slash = fname.find_last_of('/');
@@ -270,8 +270,7 @@ rpr_int MaterialIoXML::SaveMaterials(rpr_char const* filename, std::vector<rpr_m
 
 rpr_int MaterialIoXML::LoadMaterials(rpr_char const* filename, std::vector<rpr_material_node> & materials)
 {
-    return RPR_ERROR_UNIMPLEMENTED;
-
+    return RPR_SUCCESS;
 
 //    m_id2mat.clear();
 //    m_name2tex.clear();
@@ -311,13 +310,8 @@ rpr_int MaterialIoXML::LoadMaterials(rpr_char const* filename, std::vector<rpr_m
 //        materials.insert(material);
 //    }
 //
-//    // Fix up non-resolved stuff
-//    for (auto& i : m_resolve_requests)
-//    {
-//        i.material->SetInputValue(i.input, m_id2mat[i.id]);
-//    }
-//
 //    return std::make_unique<ContainerIterator<std::set<Material::Ptr>>>(std::move(materials));
+
 }
 
 rpr_int MaterialIo::SaveMaterialsFromScene(rpr_char const* filename, rpr_scene scene)
@@ -331,14 +325,14 @@ rpr_int MaterialIo::SaveMaterialsFromScene(rpr_char const* filename, rpr_scene s
     RETURN_IF_FAILED(status);
 
     // TODO: Check if materials not unique
-    std::vector<rpr_material_node> materials;
+    std::set<rpr_material_node> materials;
 
     for (rpr_shape shape : shapes)
     {
         rpr_material_node material = nullptr;
         status = rprShapeGetInfo(shape, RPR_SHAPE_MATERIAL, sizeof(material), &material, nullptr);
         RETURN_IF_FAILED(status);
-        materials.push_back(material);
+        materials.insert(material);
     }
 
     status = SaveMaterials(filename, materials);
@@ -446,7 +440,7 @@ rpr_int MaterialIoXML::GetInputMapId(const rpr_material_node material, rpr_uint 
         std::ostringstream oss;
         oss << value[0] << value[1] << value[2] << value[3];
         std::hash<std::string> hash_fn;
-        *out_id = static_cast<std::int64_t>(hash_fn(oss.str()));
+        *out_id = static_cast<std::int64_t>(hash_fn(oss.str()) & 0x7FFF'FFFF'FFFF'FFFF);
 
         break;
     }
@@ -573,7 +567,7 @@ rpr_int MaterialIoXML::WriteFloatInput(XMLPrinter& printer, const rpr_material_n
         printer.PushAttribute("name", "");
         printer.PushAttribute("id", input_id);
 
-        // Type: 0 — kConstantFloat3 (to save compatibility)
+        // InputMapType::kConstantFloat3 = 0
         printer.PushAttribute("type", 0);
         printer.PushAttribute("value", Float4ToString(value).c_str());
     }
@@ -601,10 +595,11 @@ rpr_int MaterialIoXML::WriteTextureInput(XMLPrinter& printer, const rpr_material
     {
         printer.PushAttribute("name", input_name);
         printer.PushAttribute("id", input_id);
-        // kSampler: type 2 — kSampler (to save compatibility)
+        // InputMapType::kSampler = 2
         printer.PushAttribute("type", 2);
-        // TODO: tex2name map
-        // TODO: make image loaders to set only relative paths to names
+        // TODO: tex2name map?
+        // TODO: store only relative path to image
+        // TODO: save new image if it is not present on a drive
         printer.PushAttribute("value", image_name);
     }
     printer.CloseElement();
@@ -792,7 +787,6 @@ rpr_int MaterialIoXML::WriteArithmeticInput(XMLPrinter& printer, const rpr_mater
     return RPR_SUCCESS;
 }
 
-//
 //InputMap::Ptr MaterialIoXML::LoadInputMap(ImageIo& io, XMLElement* element,
 //    const std::map<uint32_t, XMLElement*> &input_map_cache,
 //    std::map<uint32_t, InputMap::Ptr> &loaded_inputs)

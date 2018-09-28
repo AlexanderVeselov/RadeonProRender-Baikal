@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <set>
 #include <memory>
 
 class MaterialIo
@@ -20,7 +21,7 @@ public:
     virtual ~MaterialIo() = 0;
 
     virtual rpr_int LoadMaterials(rpr_char const* filename, std::vector<rpr_material_node> & materials) = 0;
-    virtual rpr_int SaveMaterials(rpr_char const* filename, std::vector<rpr_material_node> const& materials) = 0;
+    virtual rpr_int SaveMaterials(rpr_char const* filename, std::set<rpr_material_node> const& materials) = 0;
 
     MaterialMap LoadMaterialMapping(rpr_char const* filename);
     rpr_int ReplaceSceneMaterials(rpr_scene scene, MaterialMap const& mapping);
