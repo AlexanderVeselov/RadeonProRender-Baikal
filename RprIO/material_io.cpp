@@ -24,7 +24,7 @@ using namespace tinyxml2;
 class MaterialIoXML : public MaterialIo
 {
 public:
-    rpr_int LoadMaterials(rpr_char const* filename, std::vector<rpr_material_node> & materials) override;
+    rpr_int LoadMaterials(rpr_char const* filename, rpr_material_system material_system, std::map<std::string, rpr_material_node> & new_materials) override;
     rpr_int SaveMaterials(rpr_char const* filename, std::set<rpr_material_node> const& materials) override;
 
 private:
@@ -38,13 +38,22 @@ private:
     rpr_int WriteTextureInput(XMLPrinter& printer, const rpr_material_node input_node, std::int64_t input_id);
     rpr_int WriteArithmeticInput(XMLPrinter& printer, const rpr_material_node input_node, std::int64_t input_id);
 
+    struct InputDesc
+    {
+        union
+        {
+            rpr_material_node node_value;
+            rpr_float float4_value[4];
+        };
+        bool is_node;
+    };
 
 //    // Load inputs
 //    InputMap::Ptr LoadInputMap(XMLElement* element,
 //        const std::map<uint32_t, XMLElement*> &input_map_cache,
 //        std::map<uint32_t, InputMap::Ptr> &loaded_inputs);
 //    // Load single material
-//    Material::Ptr LoadMaterial(XMLElement& element, const std::map<uint32_t, InputMap::Ptr> &loaded_inputs);
+    rpr_int LoadMaterial(rpr_material_system material_system, XMLElement& element, std::map<std::int64_t, InputDesc> const& xml_input_maps, std::map<std::string, rpr_material_node> & out_materials);
 
     // Texture to name map
     std::map<rpr_image, std::string> m_tex2name;
@@ -239,42 +248,45 @@ rpr_int MaterialIoXML::SaveMaterials(rpr_char const* filename, std::set<rpr_mate
     return RPR_SUCCESS;
 }
 
-//Material::Ptr MaterialIoXML::LoadMaterial(ImageIo& io, XMLElement& element, const std::map<uint32_t, InputMap::Ptr> &loaded_inputs)
-//{
-//    std::string name(element.Attribute("name"));
-//
-//    auto attribute_thin = element.Attribute("thin");
-//    std::string thin(attribute_thin ? attribute_thin : "");
-//    auto id = static_cast<std::uint64_t>(std::atoi(element.Attribute("id")));
-//
-//    UberV2Material::Ptr material = UberV2Material::Create();
-//    material->SetLayers(std::atoi(element.Attribute("layers")));
-//    material->SetThin(thin == "true");
-//    material->SetDoubleSided(strcmp(element.Attribute("emission_doublesided"), "true") == 0);
-//    material->LinkRefractionIOR(strcmp(element.Attribute("refraction_link_ior"), "true") == 0);
-//    material->SetMultiscatter(strcmp(element.Attribute("sss_multyscatter"), "true") == 0);
-//    material->SetName(name);
-//
-//    auto num_inputs = material->GetNumInputs();
-//    for (std::size_t a = 0u; a < num_inputs; ++a)
-//    {
-//        auto inputs = material->GetInput(a);
-//        uint32_t input_id = element.UnsignedAttribute(inputs.info.name.c_str());
-//        material->SetInputValue(inputs.info.name, loaded_inputs.at(input_id));
-//    }
-//
-//    m_id2mat[id] = material;
-//
-//    return material;
-//}
-
-rpr_int MaterialIoXML::LoadMaterials(rpr_char const* filename, std::vector<rpr_material_node> & materials)
+rpr_int MaterialIoXML::LoadMaterial(rpr_material_system material_system, XMLElement& element, std::map<std::int64_t, InputDesc> const& xml_input_maps, std::map<std::string, rpr_material_node> & out_materials)
 {
-    return RPR_SUCCESS;
+    rpr_material_node material = nullptr;
+    rpr_int status = rprMaterialSystemCreateNode(material_system, RPR_MATERIAL_NODE_UBERV2, &material);
+    RETURN_IF_FAILED(status);
 
+    status = rprObjectSetName(material, element.Attribute("name"));
+    RETURN_IF_FAILED(status);
+
+    status = rprMaterialNodeSetInputU_ext(material, RPR_UBER_MATERIAL_LAYERS, element.UnsignedAttribute("layers"));
+    RETURN_IF_FAILED(status);
+    status = rprMaterialNodeSetInputU_ext(material, RPR_UBER_MATERIAL_REFRACTION_THIN_SURFACE, element.UnsignedAttribute("thin"));
+    RETURN_IF_FAILED(status);
+    status = rprMaterialNodeSetInputU_ext(material, RPR_UBER_MATERIAL_REFRACTION_IOR_MODE, element.BoolAttribute("refraction_link_ior"));
+    RETURN_IF_FAILED(status);
+    status = rprMaterialNodeSetInputU_ext(material, RPR_UBER_MATERIAL_EMISSION_MODE, element.BoolAttribute("emission_doublesided"));
+    RETURN_IF_FAILED(status);
+    status = rprMaterialNodeSetInputU_ext(material, RPR_UBER_MATERIAL_SSS_MULTISCATTER, element.UnsignedAttribute("sss_multyscatter"));
+    RETURN_IF_FAILED(status);
+
+    // Get uberv2 layer attributes
+    for (XMLAttribute const* layer_attribute = element.FirstAttribute(); layer_attribute; layer_attribute = layer_attribute->Next())
+    {
+        if (strncmp(layer_attribute->Name(), "uberv2", 6) != 0)
+        {
+            continue;
+        }
+        std::int64_t child_id = layer_attribute->Int64Value();
+
+
+    }
+
+    return RPR_SUCCESS;
+}
+
+rpr_int MaterialIoXML::LoadMaterials(rpr_char const* filename, rpr_material_system material_system, std::map<std::string, rpr_material_node> & new_materials)
+{
 //    m_id2mat.clear();
 //    m_name2tex.clear();
-//    m_resolve_requests.clear();
 //
 //    auto slash = file_name.find_last_of('/');
 //    if (slash == std::string::npos) slash = file_name.find_last_of('\\');
@@ -283,35 +295,25 @@ rpr_int MaterialIoXML::LoadMaterials(rpr_char const* filename, std::vector<rpr_m
 //    else
 //        m_base_path.clear();
 //
-//    XMLDocument doc;
-//    doc.LoadFile(file_name.c_str());
-//
-//    auto image_io = ImageIo::CreateImageIo();
-//
-//    std::map<uint32_t, XMLElement*> input_map_cache;
-//    auto inputs = doc.FirstChildElement("Inputs");
-//    for (auto element = inputs->FirstChildElement(); element; element = element->NextSiblingElement())
-//    {
-//        uint32_t id = element->UnsignedAttribute("id");
-//        input_map_cache.insert(std::make_pair(id, element));
-//    }
-//
-//    std::map<uint32_t, InputMap::Ptr> loaded_elements;
-//    for (auto element = inputs->FirstChildElement(); element; element = element->NextSiblingElement())
-//    {
-//        LoadInputMap(*image_io, element, input_map_cache, loaded_elements);
-//    }
-//
-//    std::set<Material::Ptr> materials;
-//    auto materials_node = doc.FirstChildElement("Materials");
-//    for (auto element = materials_node->FirstChildElement(); element; element = element->NextSiblingElement())
-//    {
-//        auto material = LoadMaterial(*image_io, *element, loaded_elements);
-//        materials.insert(material);
-//    }
-//
-//    return std::make_unique<ContainerIterator<std::set<Material::Ptr>>>(std::move(materials));
+    XMLDocument doc;
+    doc.LoadFile(filename);
 
+    std::map<std::int64_t, InputDesc> input_map_cache;
+    auto inputs = doc.FirstChildElement("Inputs");
+    for (auto element = inputs->FirstChildElement(); element; element = element->NextSiblingElement())
+    {
+        std::int64_t id = element->Int64Attribute("id");
+        input_map_cache.insert(std::make_pair(id, element));
+    }
+
+    auto materials_node = doc.FirstChildElement("Materials");
+    for (auto element = materials_node->FirstChildElement(); element; element = element->NextSiblingElement())
+    {
+        rpr_int status = LoadMaterial(material_system, *element, input_map_cache, new_materials);
+        RETURN_IF_FAILED(status);
+    }
+
+    return RPR_SUCCESS;
 }
 
 rpr_int MaterialIo::SaveMaterialsFromScene(rpr_char const* filename, rpr_scene scene)
@@ -324,7 +326,6 @@ rpr_int MaterialIo::SaveMaterialsFromScene(rpr_char const* filename, rpr_scene s
     status = rprSceneGetInfo(scene, RPR_SCENE_SHAPE_LIST, sizeof(rpr_shape) * shape_count, shapes.data(), nullptr);
     RETURN_IF_FAILED(status);
 
-    // TODO: Check if materials not unique
     std::set<rpr_material_node> materials;
 
     for (rpr_shape shape : shapes)
@@ -341,86 +342,98 @@ rpr_int MaterialIo::SaveMaterialsFromScene(rpr_char const* filename, rpr_scene s
     return RPR_SUCCESS;
 }
 
-//void MaterialIo::ReplaceSceneMaterials(Scene1& scene, Iterator& iterator, MaterialMap const& mapping)
-//{
-//    std::map<std::string, Material::Ptr> name2mat;
-//
-//    for (iterator.Reset(); iterator.IsValid(); iterator.Next())
-//    {
-//        auto material = iterator.ItemAs<Material>();
-//        auto name = material->GetName();
-//        name2mat[name] = material;
-//    }
-//
-//    auto shape_iter = scene.CreateShapeIterator();
-//
-//    for (; shape_iter->IsValid(); shape_iter->Next())
-//    {
-//        auto shape = shape_iter->ItemAs<Shape>();
-//        auto material = shape->GetMaterial();
-//
-//        if (!material)
-//            continue;
-//
-//        auto name = material->GetName();
-//        auto citer = mapping.find(name);
-//
-//        if (citer != mapping.cend())
-//        {
-//            auto mat_iter = name2mat.find(citer->second);
-//
-//            if (mat_iter != name2mat.cend())
-//            {
-//                shape->SetMaterial(mat_iter->second);
-//            }
-//        }
-//    }
-//}
-//
-//MaterialIo::MaterialMap MaterialIo::LoadMaterialMapping(std::string const& filename)
-//{
-//    MaterialMap map;
-//
-//    XMLDocument doc;
-//    doc.LoadFile(filename.c_str());
-//
-//    for (auto element = doc.FirstChildElement(); element; element = element->NextSiblingElement())
-//    {
-//        std::string from(element->Attribute("from"));
-//        std::string to(element->Attribute("to"));
-//        map.emplace(from, to);
-//    }
-//
-//    return map;
-//}
+rpr_int MaterialIo::ReplaceSceneMaterials(rpr_scene scene, std::map<std::string, rpr_material_node> new_materials, MaterialMap const& mapping)
+{
+    std::size_t shape_count = 0;
+    rpr_int status = rprSceneGetInfo(scene, RPR_SCENE_SHAPE_COUNT, sizeof(shape_count), &shape_count, nullptr);
+    RETURN_IF_FAILED(status);
 
-//void MaterialIo::SaveIdentityMapping(std::string const& filename, Scene1 const& scene)
-//{
-//    XMLDocument doc;
-//    XMLPrinter printer;
-//
-//    auto shape_iter = scene.CreateShapeIterator();
-//    std::set<Material::Ptr> serialized_mats;
-//
-//    for (; shape_iter->IsValid(); shape_iter->Next())
-//    {
-//        auto material = shape_iter->ItemAs<Shape>()->GetMaterial();
-//
-//        if (material && serialized_mats.find(material) == serialized_mats.cend())
-//        {
-//            auto name = material->GetName();
-//            printer.OpenElement("Mapping");
-//            printer.PushAttribute("from", name.c_str());
-//            printer.PushAttribute("to", name.c_str());
-//            printer.CloseElement();
-//            serialized_mats.emplace(material);
-//        }
-//    }
-//
-//    doc.Parse(printer.CStr());
-//
-//    doc.SaveFile(filename.c_str());
-//}
+    std::vector<rpr_shape> shapes(shape_count);
+    status = rprSceneGetInfo(scene, RPR_SCENE_SHAPE_LIST, sizeof(rpr_shape) * shape_count, shapes.data(), nullptr);
+    RETURN_IF_FAILED(status);
+
+    for (rpr_shape shape : shapes)
+    {
+        rpr_material_node material = nullptr;
+        status = rprShapeGetInfo(shape, RPR_SHAPE_MATERIAL, sizeof(material), &material, nullptr);
+        RETURN_IF_FAILED(status);
+
+        rpr_char material_name[256];
+        status = rprMaterialNodeGetInfo(material, RPR_OBJECT_NAME, 0, material_name, nullptr);
+        RETURN_IF_FAILED(status);
+
+        auto citer = mapping.find(material_name);
+        if (citer != mapping.cend())
+        {
+            auto mat_iter = new_materials.find(citer->second);
+
+            if (mat_iter != new_materials.cend())
+            {
+                status = rprShapeSetMaterial(shape, mat_iter->second);
+                RETURN_IF_FAILED(status);
+            }
+        }
+    }
+
+    return RPR_SUCCESS;
+}
+
+MaterialIo::MaterialMap MaterialIo::LoadMaterialMapping(rpr_char const* filename)
+{
+    MaterialMap map;
+
+    XMLDocument doc;
+    doc.LoadFile(filename);
+
+    for (auto element = doc.FirstChildElement(); element; element = element->NextSiblingElement())
+    {
+        std::string from(element->Attribute("from"));
+        std::string to(element->Attribute("to"));
+        map.emplace(from, to);
+    }
+
+    return map;
+
+}
+
+rpr_int MaterialIo::SaveIdentityMapping(rpr_char const* filename, rpr_scene scene)
+{
+    std::size_t shape_count = 0;
+    rpr_int status = rprSceneGetInfo(scene, RPR_SCENE_SHAPE_COUNT, sizeof(shape_count), &shape_count, nullptr);
+    RETURN_IF_FAILED(status);
+
+    std::vector<rpr_shape> shapes(shape_count);
+    status = rprSceneGetInfo(scene, RPR_SCENE_SHAPE_LIST, sizeof(rpr_shape) * shape_count, shapes.data(), nullptr);
+    RETURN_IF_FAILED(status);
+
+    XMLPrinter printer;
+    std::set<rpr_material_node> serialized_mats;
+    for (rpr_shape shape : shapes)
+    {
+        rpr_material_node material = nullptr;
+        status = rprShapeGetInfo(shape, RPR_SHAPE_MATERIAL, sizeof(material), &material, nullptr);
+        RETURN_IF_FAILED(status);
+
+        if (material && serialized_mats.find(material) == serialized_mats.cend())
+        {
+            rpr_char material_name[256];
+            status = rprMaterialNodeGetInfo(material, RPR_OBJECT_NAME, 0, material_name, nullptr);
+            RETURN_IF_FAILED(status);
+
+            printer.OpenElement("Mapping");
+            printer.PushAttribute("from", material_name);
+            printer.PushAttribute("to", material_name);
+            printer.CloseElement();
+            serialized_mats.emplace(material);
+        }
+    }
+
+    XMLDocument doc;
+    doc.Parse(printer.CStr());
+    doc.SaveFile(filename);
+
+    return RPR_SUCCESS;
+}
 
 rpr_int MaterialIoXML::GetInputMapId(const rpr_material_node material, rpr_uint input_index, std::int64_t* out_id)
 {

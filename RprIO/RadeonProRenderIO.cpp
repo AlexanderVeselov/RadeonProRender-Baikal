@@ -16,16 +16,24 @@ rpr_int rprSaveScene(rpr_char const* filename, rpr_char const* basepath, rpr_con
 
 rpr_int rprReplaceSceneMaterials(rpr_char const* materials_xml, rpr_char const* mapping_xml,
     rpr_char const* basepath, rpr_context context, rpr_material_system materialSystem, rpr_scene scene)
-{/*
-    std::ifstream in_materials(basepath + "materials.xml");
-    std::ifstream in_mapping(basepath + "mapping.xml");*/
-    return RPR_ERROR_UNIMPLEMENTED;
+{
+    auto material_io = MaterialIo::CreateMaterialIoXML();
+    MaterialIo::MaterialMap material_mapping = material_io->LoadMaterialMapping(mapping_xml);
+
+    std::map<std::string, rpr_material_node> new_materials;
+    rpr_int status = material_io->LoadMaterials(materials_xml, materialSystem, new_materials);
+    RETURN_IF_FAILED(status);
+
+    return material_io->ReplaceSceneMaterials(scene, new_materials, material_mapping);
 }
 
 rpr_int rprSaveSceneMaterials(rpr_char const* materials_xml, rpr_char const* mapping_xml,
     rpr_char const* basepath, rpr_context context, rpr_material_system materialSystem, rpr_scene scene)
 {
     auto material_io = MaterialIo::CreateMaterialIoXML();
-    return material_io->SaveMaterialsFromScene("materials.xml", scene);
+    rpr_int status = material_io->SaveIdentityMapping(mapping_xml, scene);
+    RETURN_IF_FAILED(status);
+
+    return material_io->SaveMaterialsFromScene(materials_xml, scene);
 
 }
