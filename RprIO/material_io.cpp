@@ -19,12 +19,91 @@ using namespace tinyxml2;
         return (status);         \
     }
 
+namespace Baikal
+{
+    // This enum should be identical to _enum class Baikal::InputMap::InputMapType_
+    // declared in BaikalNext/SceneGraph/inputmaps.h
+    enum InputMapType
+    {
+        kConstantFloat3 = 0, // Holds constant float3 value. 
+        kConstantFloat, // Holds constant float value
+        kSampler, // Samples value from provided texture
+        kAdd, // a + b
+        kSub, // a - b
+        kMul, // a * b
+        kDiv, // a / b
+        kSin, // sin(arg)
+        kCos, // cos(arg)
+        kTan, // tan(arg)
+        kSelect, // Selects single component from input arg
+        kDot3, // dot(a.xyz, b.xyz)
+        kCross3, // cross(a.xyz, b.xyz)
+        kLength3, // length(a.xyz)
+        kNormalize3, // normalize(a.xyz)
+        kPow, // pow(a, b)
+        kAcos, // acos(arg)
+        kAsin, // asin(arg)
+        kAtan, // atan(arg)
+        kLerp, // mix (a, b, control)
+        kMin, // min(a, b)
+        kMax, // max(a, b)
+        kFloor, // floor(arg)
+        kMod, // fmod(a, b)
+        kAbs, // fabs(arg)
+        kShuffle, // shuffle(arg, mask)
+        kShuffle2, // shuffle2(a, b, mask)
+        kDot4, // dot(a, b)
+        kCross4, // cross(a, b)
+        kMatMul, // arg * mat4
+        kRemap, // remaps from source range (x->y) to destination range (x->y)
+                // calculated as mix(float3(dest.x), float3(dest.y), (val - src.x)/(src.y - src.x))
+        kSamplerBumpmap // samples normal from bump map texture
+    };
+}
+
+// Map for conversion from RPR input types to Baikal input types (to save compatibility)
+static const std::map<rpr_int, unsigned> kArithmeticOpRpr2Baikal =
+{
+    { RPR_MATERIAL_NODE_OP_ADD, Baikal::InputMapType::kAdd },
+    { RPR_MATERIAL_NODE_OP_SUB, Baikal::InputMapType::kSub },
+    { RPR_MATERIAL_NODE_OP_MUL, Baikal::InputMapType::kMul },
+    { RPR_MATERIAL_NODE_OP_DIV, Baikal::InputMapType::kDiv },
+    { RPR_MATERIAL_NODE_OP_SIN, Baikal::InputMapType::kSin },
+    { RPR_MATERIAL_NODE_OP_COS, Baikal::InputMapType::kCos },
+    { RPR_MATERIAL_NODE_OP_TAN, Baikal::InputMapType::kTan },
+    { RPR_MATERIAL_NODE_OP_SELECT_X, Baikal::InputMapType::kSelect },
+    { RPR_MATERIAL_NODE_OP_SELECT_Y, Baikal::InputMapType::kSelect },
+    { RPR_MATERIAL_NODE_OP_SELECT_Z, Baikal::InputMapType::kSelect },
+    { RPR_MATERIAL_NODE_OP_COMBINE, Baikal::InputMapType::kShuffle2 },
+    { RPR_MATERIAL_NODE_OP_DOT3, Baikal::InputMapType::kDot3 },
+    { RPR_MATERIAL_NODE_OP_CROSS3, Baikal::InputMapType::kCross3 },
+    { RPR_MATERIAL_NODE_OP_LENGTH3, Baikal::InputMapType::kLength3 },
+    { RPR_MATERIAL_NODE_OP_NORMALIZE3, Baikal::InputMapType::kNormalize3 },
+    { RPR_MATERIAL_NODE_OP_POW, Baikal::InputMapType::kPow },
+    { RPR_MATERIAL_NODE_OP_ACOS, Baikal::InputMapType::kAcos },
+    { RPR_MATERIAL_NODE_OP_ASIN, Baikal::InputMapType::kAsin },
+    { RPR_MATERIAL_NODE_OP_ATAN, Baikal::InputMapType::kAtan },
+    { RPR_MATERIAL_NODE_OP_AVERAGE_XYZ, Baikal::InputMapType::kLerp },
+    { RPR_MATERIAL_NODE_OP_AVERAGE, Baikal::InputMapType::kLerp },
+    { RPR_MATERIAL_NODE_OP_MIN, Baikal::InputMapType::kMin },
+    { RPR_MATERIAL_NODE_OP_MAX, Baikal::InputMapType::kMax },
+    { RPR_MATERIAL_NODE_OP_FLOOR, Baikal::InputMapType::kFloor },
+    { RPR_MATERIAL_NODE_OP_MOD, Baikal::InputMapType::kMod },
+    { RPR_MATERIAL_NODE_OP_ABS, Baikal::InputMapType::kAbs },
+    { RPR_MATERIAL_NODE_OP_SHUFFLE_YZWX, Baikal::InputMapType::kShuffle },
+    { RPR_MATERIAL_NODE_OP_SHUFFLE_ZWXY, Baikal::InputMapType::kShuffle },
+    { RPR_MATERIAL_NODE_OP_SHUFFLE_WXYZ, Baikal::InputMapType::kShuffle },
+    { RPR_MATERIAL_NODE_OP_MAT_MUL, Baikal::InputMapType::kMatMul },
+    { RPR_MATERIAL_NODE_OP_SELECT_W, Baikal::InputMapType::kSelect },
+    { RPR_MATERIAL_NODE_OP_DOT4, Baikal::InputMapType::kDot4 },
+    //{ RPR_MATERIAL_NODE_OP_LOG, ??? },          // Not present in Baikal
+};
 
 // XML based material IO implememtation
 class MaterialIoXML : public MaterialIo
 {
 public:
-    rpr_int LoadMaterials(rpr_char const* filename, rpr_material_system material_system, std::map<std::string, rpr_material_node> & new_materials) override;
+    rpr_int LoadMaterials(rpr_char const* filename, rpr_context context, rpr_material_system material_system, std::map<std::string, rpr_material_node> & new_materials) override;
     rpr_int SaveMaterials(rpr_char const* filename, std::set<rpr_material_node> const& materials) override;
 
 private:
@@ -38,57 +117,28 @@ private:
     rpr_int WriteTextureInput(XMLPrinter& printer, const rpr_material_node input_node, std::int64_t input_id);
     rpr_int WriteArithmeticInput(XMLPrinter& printer, const rpr_material_node input_node, std::int64_t input_id);
 
-    struct InputDesc
-    {
-        union
-        {
-            rpr_material_node node_value;
-            rpr_float float4_value[4];
-        };
-        bool is_node;
-    };
+    // Load input
+    rpr_int LoadInput(rpr_context context, rpr_material_system material_system, rpr_material_node material,
+        rpr_char const* input_name, std::int64_t input_id, std::map<std::int64_t, XMLElement*> const& xml_inputs);
 
-//    // Load inputs
-//    InputMap::Ptr LoadInputMap(XMLElement* element,
-//        const std::map<uint32_t, XMLElement*> &input_map_cache,
-//        std::map<uint32_t, InputMap::Ptr> &loaded_inputs);
-//    // Load single material
-    rpr_int LoadMaterial(rpr_material_system material_system, XMLElement& element, std::map<std::int64_t, InputDesc> const& xml_input_maps, std::map<std::string, rpr_material_node> & out_materials);
+    rpr_int LoadNodeInput(rpr_context context, rpr_material_system material_system, XMLElement* xml_input,
+        std::map<std::int64_t, XMLElement*> const& xml_inputs, rpr_material_node* out_node);
+    // Load single material
+    rpr_int LoadMaterial(rpr_context context, rpr_material_system material_system, XMLElement& element, std::map<std::int64_t, XMLElement*> const& xml_input_maps, std::map<std::string, rpr_material_node> & out_materials);
+//    rpr_int LoadOneArgInput(rpr_context context, rpr_material_system material_system, XMLElement* xml_input,
+//        std::map<std::int64_t, XMLElement*> const& xml_inputs, rpr_material_node* out_node) const;
+    rpr_int LoadTwoArgInput(rpr_context context, rpr_material_system material_system, rpr_uint operation,
+        XMLElement* xml_input, std::map<std::int64_t, XMLElement*> const& xml_inputs, rpr_material_node* out_node);
 
     // Texture to name map
     std::map<rpr_image, std::string> m_tex2name;
 
     std::map<std::string, rpr_image> m_name2tex;
-    std::map<std::uint64_t, rpr_material_node> m_id2mat;
     std::set<std::int64_t> m_saved_inputs;
+    std::map<std::int64_t, rpr_material_node> m_loaded_inputs;
 
     std::string m_base_path;
     std::uint32_t m_current_material_index;
-    std::uint32_t m_current_input_index;
-
-//    template<class T>
-//    InputMap::Ptr LoadTwoArgInput(ImageIo& io, XMLElement* element,
-//        const std::map<uint32_t, XMLElement*> &input_map_cache,
-//        std::map<uint32_t, InputMap::Ptr> &loaded_inputs)
-//    {
-//        uint32_t arg1_id = element->UnsignedAttribute("input0");
-//        uint32_t arg2_id = element->UnsignedAttribute("input1");
-//        InputMap::Ptr arg1 = LoadInputMap(io, input_map_cache.at(arg1_id), input_map_cache, loaded_inputs);
-//        InputMap::Ptr arg2 = LoadInputMap(io, input_map_cache.at(arg2_id), input_map_cache, loaded_inputs);
-
-//        return T::Create(arg1, arg2);
-//    }
-
-//    template<class T>
-//    InputMap::Ptr LoadOneArgInput(ImageIo& io, XMLElement* element,
-//        const std::map<uint32_t, XMLElement*> &input_map_cache,
-//        std::map<uint32_t, InputMap::Ptr> &loaded_inputs)
-//    {
-//        uint32_t arg1_id = element->UnsignedAttribute("input0");
-//        InputMap::Ptr arg1 = LoadInputMap(io, input_map_cache.at(arg1_id), input_map_cache, loaded_inputs);
-
-//        return T::Create(arg1);
-//    }
 
 };
 
@@ -211,10 +261,8 @@ rpr_int MaterialIoXML::SaveMaterials(rpr_char const* filename, std::set<rpr_mate
     XMLDocument doc;
     XMLPrinter printer;
 
-    //m_tex2name.clear();
     rpr_int status = RPR_SUCCESS;
 
-    m_current_input_index = 0;
     printer.OpenElement("Inputs");
 
     for (rpr_material_node material : materials)
@@ -231,7 +279,6 @@ rpr_int MaterialIoXML::SaveMaterials(rpr_char const* filename, std::set<rpr_mate
     }
     printer.CloseElement();
 
-    m_current_input_index = 0;
     printer.OpenElement("Materials");
     for (rpr_material_node material : materials)
     {
@@ -241,14 +288,61 @@ rpr_int MaterialIoXML::SaveMaterials(rpr_char const* filename, std::set<rpr_mate
     printer.CloseElement();
 
     doc.Parse(printer.CStr());
-    doc.Parse(printer.CStr());
-
     doc.SaveFile(filename);
 
     return RPR_SUCCESS;
 }
 
-rpr_int MaterialIoXML::LoadMaterial(rpr_material_system material_system, XMLElement& element, std::map<std::int64_t, InputDesc> const& xml_input_maps, std::map<std::string, rpr_material_node> & out_materials)
+rpr_int MaterialIoXML::LoadInput(rpr_context context, rpr_material_system material_system, rpr_material_node material, 
+    rpr_char const* input_name, std::int64_t input_id, std::map<std::int64_t, XMLElement*> const& xml_inputs)
+{
+    auto it = xml_inputs.find(input_id);
+    if (it == xml_inputs.cend())
+    {
+        // Failed to find input
+        return RPR_ERROR_IO_ERROR;
+    }
+
+    rpr_int status = RPR_SUCCESS;
+    XMLElement const* xml_input = it->second;
+    switch (xml_input->UnsignedAttribute("type"))
+    {
+    case 0:
+    {
+        // float3/float4 input
+        rpr_float value[4];
+        std::istringstream iss(xml_input->Attribute("value"));
+        iss >> value[0] >> value[1] >> value[2] >> value[3];
+        status = rprMaterialNodeSetInputF(material, input_name, value[0], value[1], value[2], value[3]);
+        RETURN_IF_FAILED(status);
+        break;
+    }
+    case 1:
+    {
+        // float input
+        rpr_float value = xml_input->FloatAttribute("value");
+        status = rprMaterialNodeSetInputF(material, input_name, value, value, value, value);
+        RETURN_IF_FAILED(status);
+        break;
+    }
+    default:
+    {
+        // Other input types - node input
+        rpr_material_node input = nullptr;
+        status = LoadNodeInput(context, material_system, it->second, xml_inputs, &input);
+        RETURN_IF_FAILED(status);
+
+        status = rprMaterialNodeSetInputN(material, input_name, input);
+        RETURN_IF_FAILED(status);
+        break;
+    }
+    }
+
+    return RPR_SUCCESS;
+
+}
+
+rpr_int MaterialIoXML::LoadMaterial(rpr_context context, rpr_material_system material_system, XMLElement& element, std::map<std::int64_t, XMLElement*> const& xml_input_maps, std::map<std::string, rpr_material_node> & out_materials)
 {
     rpr_material_node material = nullptr;
     rpr_int status = rprMaterialSystemCreateNode(material_system, RPR_MATERIAL_NODE_UBERV2, &material);
@@ -271,19 +365,21 @@ rpr_int MaterialIoXML::LoadMaterial(rpr_material_system material_system, XMLElem
     // Get uberv2 layer attributes
     for (XMLAttribute const* layer_attribute = element.FirstAttribute(); layer_attribute; layer_attribute = layer_attribute->Next())
     {
-        if (strncmp(layer_attribute->Name(), "uberv2", 6) != 0)
+        char const* input_name = layer_attribute->Name();
+        if (strncmp(input_name, "uberv2", 6) != 0)
         {
             continue;
         }
+
         std::int64_t child_id = layer_attribute->Int64Value();
-
-
+        status = LoadInput(context, material_system, material, input_name, child_id, xml_input_maps);
+        RETURN_IF_FAILED(status);
     }
 
     return RPR_SUCCESS;
 }
 
-rpr_int MaterialIoXML::LoadMaterials(rpr_char const* filename, rpr_material_system material_system, std::map<std::string, rpr_material_node> & new_materials)
+rpr_int MaterialIoXML::LoadMaterials(rpr_char const* filename, rpr_context context, rpr_material_system material_system, std::map<std::string, rpr_material_node> & new_materials)
 {
 //    m_id2mat.clear();
 //    m_name2tex.clear();
@@ -298,7 +394,7 @@ rpr_int MaterialIoXML::LoadMaterials(rpr_char const* filename, rpr_material_syst
     XMLDocument doc;
     doc.LoadFile(filename);
 
-    std::map<std::int64_t, InputDesc> input_map_cache;
+    std::map<std::int64_t, XMLElement*> input_map_cache;
     auto inputs = doc.FirstChildElement("Inputs");
     for (auto element = inputs->FirstChildElement(); element; element = element->NextSiblingElement())
     {
@@ -309,7 +405,7 @@ rpr_int MaterialIoXML::LoadMaterials(rpr_char const* filename, rpr_material_syst
     auto materials_node = doc.FirstChildElement("Materials");
     for (auto element = materials_node->FirstChildElement(); element; element = element->NextSiblingElement())
     {
-        rpr_int status = LoadMaterial(material_system, *element, input_map_cache, new_materials);
+        rpr_int status = LoadMaterial(context, material_system, *element, input_map_cache, new_materials);
         RETURN_IF_FAILED(status);
     }
 
@@ -362,14 +458,14 @@ rpr_int MaterialIo::ReplaceSceneMaterials(rpr_scene scene, std::map<std::string,
         status = rprMaterialNodeGetInfo(material, RPR_OBJECT_NAME, 0, material_name, nullptr);
         RETURN_IF_FAILED(status);
 
-        auto citer = mapping.find(material_name);
-        if (citer != mapping.cend())
+        auto it = mapping.find(material_name);
+        if (it != mapping.cend())
         {
-            auto mat_iter = new_materials.find(citer->second);
+            auto mat_it = new_materials.find(it->second);
 
-            if (mat_iter != new_materials.cend())
+            if (mat_it != new_materials.cend())
             {
-                status = rprShapeSetMaterial(shape, mat_iter->second);
+                status = rprShapeSetMaterial(shape, mat_it->second);
                 RETURN_IF_FAILED(status);
             }
         }
@@ -657,47 +753,10 @@ rpr_int MaterialIoXML::WriteArithmeticInput(XMLPrinter& printer, const rpr_mater
     printer.PushAttribute("name", input_name);
     printer.PushAttribute("id", input_id);
 
-    static const std::map<rpr_int, unsigned> kArithmeticOpRpr2Baikal =
-    {
-        { RPR_MATERIAL_NODE_OP_ADD, 3},             // InputMapType::kAdd = 3
-        { RPR_MATERIAL_NODE_OP_SUB, 4},             // InputMapType::kSub = 4
-        { RPR_MATERIAL_NODE_OP_MUL, 5},             // InputMapType::kMul = 5
-        { RPR_MATERIAL_NODE_OP_DIV, 6},             // InputMapType::kDiv = 6
-        { RPR_MATERIAL_NODE_OP_SIN, 7},             // InputMapType::kSin = 7
-        { RPR_MATERIAL_NODE_OP_COS, 8},             // InputMapType::kCos = 8
-        { RPR_MATERIAL_NODE_OP_TAN, 9},             // InputMapType::kTan = 9
-        { RPR_MATERIAL_NODE_OP_SELECT_X, 10},       // InputMapType::kSelect = 10
-        { RPR_MATERIAL_NODE_OP_SELECT_Y, 10},       // InputMapType::kSelect = 10
-        { RPR_MATERIAL_NODE_OP_SELECT_Z, 10},       // InputMapType::kSelect = 10
-        { RPR_MATERIAL_NODE_OP_COMBINE, 26},        // InputMapType::kShuffle2 = 26
-        { RPR_MATERIAL_NODE_OP_DOT3, 11},           // InputMapType::kDot3 = 11
-        { RPR_MATERIAL_NODE_OP_CROSS3, 12},         // InputMapType::kCross3 = 12
-        { RPR_MATERIAL_NODE_OP_LENGTH3, 13},        // InputMapType::kLength3 = 13
-        { RPR_MATERIAL_NODE_OP_NORMALIZE3, 14},     // InputMapType::kNormalize3 = 14
-        { RPR_MATERIAL_NODE_OP_POW, 15},            // InputMapType::kPow = 15
-        { RPR_MATERIAL_NODE_OP_ACOS, 16},           // InputMapType::kAcos = 16
-        { RPR_MATERIAL_NODE_OP_ASIN, 17},           // InputMapType::kAsin = 17
-        { RPR_MATERIAL_NODE_OP_ATAN, 18},           // InputMapType::kAtan = 18
-        { RPR_MATERIAL_NODE_OP_AVERAGE_XYZ, 19},    // InputMapType::kLerp = 19
-        { RPR_MATERIAL_NODE_OP_AVERAGE, 19},        // InputMapType::kLerp = 19
-        { RPR_MATERIAL_NODE_OP_MIN, 20},            // InputMapType::kMin = 20
-        { RPR_MATERIAL_NODE_OP_MAX, 21},            // InputMapType::kMax = 21
-        { RPR_MATERIAL_NODE_OP_FLOOR, 22},          // InputMapType::kFloor = 22
-        { RPR_MATERIAL_NODE_OP_MOD, 23},            // InputMapType::kMod = 23
-        { RPR_MATERIAL_NODE_OP_ABS, 24},            // InputMapType::kAbs = 24
-        { RPR_MATERIAL_NODE_OP_SHUFFLE_YZWX, 25},   // InputMapType::kShuffle = 25
-        { RPR_MATERIAL_NODE_OP_SHUFFLE_ZWXY, 25},   // InputMapType::kShuffle = 25
-        { RPR_MATERIAL_NODE_OP_SHUFFLE_WXYZ, 25},   // InputMapType::kShuffle = 25
-        { RPR_MATERIAL_NODE_OP_MAT_MUL, 29},        // InputMapType::kMatMul = 29
-        { RPR_MATERIAL_NODE_OP_SELECT_W, 10},       // InputMapType::kSelect = 10
-        { RPR_MATERIAL_NODE_OP_DOT4, 27},           // InputMapType::kDot4 = 27
-        //{ RPR_MATERIAL_NODE_OP_LOG, -1},          // Not present in Baikal
-    };
-    
     auto it = kArithmeticOpRpr2Baikal.find(op_type);
     if (it == kArithmeticOpRpr2Baikal.end())
     {
-        // Unsupported operation
+        // Unsupported arithmetic operation
         return RPR_ERROR_UNSUPPORTED;
     }
 
@@ -789,163 +848,181 @@ rpr_int MaterialIoXML::WriteArithmeticInput(XMLPrinter& printer, const rpr_mater
         break;
 
     case RPR_MATERIAL_NODE_OP_LOG:
+        // Not present in Baikal
         return RPR_ERROR_UNIMPLEMENTED;
         break;
+
     default:
         assert(!"Incorrect arithmetic operation type!");
         return RPR_ERROR_UNSUPPORTED;
+
     }
     printer.CloseElement();
 
     return RPR_SUCCESS;
 }
 
-//InputMap::Ptr MaterialIoXML::LoadInputMap(ImageIo& io, XMLElement* element,
-//    const std::map<uint32_t, XMLElement*> &input_map_cache,
-//    std::map<uint32_t, InputMap::Ptr> &loaded_inputs)
+rpr_int MaterialIoXML::LoadTwoArgInput(rpr_context context, rpr_material_system material_system, rpr_uint operation,
+    XMLElement* xml_input, std::map<std::int64_t, XMLElement*> const& xml_inputs, rpr_material_node* out_node)
+{
+    assert(out_node);
+
+    std::int64_t arg1_id = xml_input->Int64Attribute("input0");
+    std::int64_t arg2_id = xml_input->Int64Attribute("input1");
+
+    rpr_material_node material_node = nullptr;
+    rpr_int status = rprMaterialSystemCreateNode(material_system, RPR_MATERIAL_NODE_ARITHMETIC, &material_node);
+    RETURN_IF_FAILED(status);
+
+    status = rprMaterialNodeSetInputU(material_node, "op", operation);
+    RETURN_IF_FAILED(status);
+
+    status = LoadInput(context, material_system, material_node, "color0", arg1_id, xml_inputs);
+    RETURN_IF_FAILED(status);
+
+    status = LoadInput(context, material_system, material_node, "color1", arg2_id, xml_inputs);
+    RETURN_IF_FAILED(status);
+
+    return RPR_SUCCESS;
+}
+//
+//rpr_int MaterialIoXML::LoadOneArgInput(rpr_context context, rpr_material_system material_system,
+//    XMLElement* xml_input, std::map<std::int64_t, XMLElement*> const& xml_inputs, rpr_material_node* out_node) const
 //{
-//    InputMap::InputMapType type = static_cast<InputMap::InputMapType>(element->UnsignedAttribute("type"));
-//    std::string name = element->Attribute("name");
-//    int id = element->UnsignedAttribute("id");
+//    uint32_t arg1_id = element->UnsignedAttribute("input0");
+//    InputMap::Ptr arg1 = LoadInputMap(io, input_map_cache.at(arg1_id), input_map_cache, loaded_inputs);
 //
-//    auto input = loaded_inputs.find(id);
-//    if (input != loaded_inputs.end())
-//    {
-//        return input->second;
-//    }
-//
-//    InputMap::Ptr result;
-//
-//    switch (type)
-//    {
-//        //Leafs
-//        case InputMap::InputMapType::kConstantFloat:
-//        {
-//            result = InputMap_ConstantFloat::Create(element->FloatAttribute("value"));
-//            break;
-//        }
-//        case InputMap::InputMapType::kConstantFloat3:
-//        {
-//
-//            std::istringstream iss(element->Attribute("value"));
-//            RadeonRays::float3 value;
-//            iss >> value.x >> value.y >> value.z;
-//
-//            result = InputMap_ConstantFloat3::Create(value);
-//            break;
-//        }
-//        case InputMap::InputMapType::kSampler:
-//        {
-//            std::string filename(element->Attribute("value"));
-//
-//            auto iter = m_name2tex.find(filename);
-//            Texture::Ptr texture;
-//
-//            if (iter != m_name2tex.cend())
-//            {
-//                texture = iter->second;
-//            }
-//            else
-//            {
-//                texture = io.LoadImage(m_base_path + filename);
-//                m_name2tex[name] = texture;
-//            }
-//
-//            result = InputMap_Sampler::Create(texture);
-//
-//            break;
-//        }
-//        case InputMap::InputMapType::kSamplerBumpmap:
-//        {
-//            std::string filename(element->Attribute("value"));
-//
-//            auto iter = m_name2tex.find(filename);
-//            Texture::Ptr texture;
-//
-//            if (iter != m_name2tex.cend())
-//            {
-//                texture = iter->second;
-//            }
-//            else
-//            {
-//                texture = io.LoadImage(m_base_path + filename);
-//                m_name2tex[name] = texture;
-//            }
-//
-//            result = InputMap_SamplerBumpMap::Create(texture);
-//            break;
-//        }
-//
-//        // Two inputs
-//        case InputMap::InputMapType::kAdd:
-//            result = LoadTwoArgInput<InputMap_Add>(io, element, input_map_cache, loaded_inputs);
-//            break;
-//        case InputMap::InputMapType::kSub:
-//            result = LoadTwoArgInput<InputMap_Sub>(io, element, input_map_cache, loaded_inputs);
-//            break;
-//        case InputMap::InputMapType::kMul:
-//            result = LoadTwoArgInput<InputMap_Mul>(io, element, input_map_cache, loaded_inputs);
-//            break;
-//        case InputMap::InputMapType::kDiv:
-//            result = LoadTwoArgInput<InputMap_Div>(io, element, input_map_cache, loaded_inputs);
-//            break;
-//        case InputMap::InputMapType::kMin:
-//            result = LoadTwoArgInput<InputMap_Min>(io, element, input_map_cache, loaded_inputs);
-//            break;
-//        case InputMap::InputMapType::kMax:
-//            result = LoadTwoArgInput<InputMap_Max>(io, element, input_map_cache, loaded_inputs);
-//            break;
-//        case InputMap::InputMapType::kDot3:
-//            result = LoadTwoArgInput<InputMap_Dot3>(io, element, input_map_cache, loaded_inputs);
-//            break;
-//        case InputMap::InputMapType::kDot4:
-//            result = LoadTwoArgInput<InputMap_Dot4>(io, element, input_map_cache, loaded_inputs);
-//            break;
-//        case InputMap::InputMapType::kCross3:
-//            result = LoadTwoArgInput<InputMap_Cross3>(io, element, input_map_cache, loaded_inputs);
-//            break;
-//        case InputMap::InputMapType::kCross4:
-//            result = LoadTwoArgInput<InputMap_Cross4>(io, element, input_map_cache, loaded_inputs);
-//            break;
-//        case InputMap::InputMapType::kPow:
-//            result = LoadTwoArgInput<InputMap_Pow>(io, element, input_map_cache, loaded_inputs);
-//            break;
-//        case InputMap::InputMapType::kMod:
-//            result = LoadTwoArgInput<InputMap_Mod>(io, element, input_map_cache, loaded_inputs);
-//            break;
+//    return T::Create(arg1);
+//}
+rpr_int MaterialIoXML::LoadNodeInput(rpr_context context, rpr_material_system material_system,
+    XMLElement * xml_input, std::map<std::int64_t, XMLElement*> const & xml_inputs, rpr_material_node * out_node)
+{
+    assert(out_node);
+
+    rpr_char const* input_name = xml_input->Attribute("name");
+    std::int64_t id = xml_input->UnsignedAttribute("id");
+
+    auto input = m_loaded_inputs.find(id);
+    if (input != m_loaded_inputs.end())
+    {
+        *out_node = input->second;
+        return RPR_SUCCESS;
+    }
+
+    rpr_material_node input_node = nullptr;
+    rpr_int status = RPR_SUCCESS;
+    rpr_uint input_type = xml_input->UnsignedAttribute("type");
+    switch (input_type)
+    {
+    // Leafs
+    case Baikal::InputMapType::kSampler:
+    case Baikal::InputMapType::kSamplerBumpmap:
+        {
+            std::string image_filename(xml_input->Attribute("value"));
+
+            auto iter = m_name2tex.find(image_filename);
+            rpr_image image = nullptr;
+
+            if (iter != m_name2tex.cend())
+            {
+                image = iter->second;
+            }
+            else
+            {
+                status = rprContextCreateImageFromFile(context, image_filename.c_str(), &image);
+                RETURN_IF_FAILED(status);
+                status = rprObjectSetName(image, image_filename.c_str());
+                RETURN_IF_FAILED(status);
+                m_name2tex.insert(std::make_pair(image_filename, image));
+            }
+
+            status = rprMaterialSystemCreateNode(material_system, RPR_MATERIAL_NODE_IMAGE_TEXTURE, &input_node);
+            RETURN_IF_FAILED(status);
+
+            status = rprMaterialNodeSetInputImageData(input_node, "data", image);
+            RETURN_IF_FAILED(status);
+
+            break;
+        }
+        // Two inputs
+        case Baikal::InputMapType::kAdd:
+            status = LoadTwoArgInput(context, material_system, RPR_MATERIAL_NODE_OP_ADD, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        case Baikal::InputMapType::kSub:
+            status = LoadTwoArgInput(context, material_system, RPR_MATERIAL_NODE_OP_SUB, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        case Baikal::InputMapType::kMul:
+            status = LoadTwoArgInput(context, material_system, RPR_MATERIAL_NODE_OP_MUL, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        case Baikal::InputMapType::kDiv:
+            status = LoadTwoArgInput(context, material_system, RPR_MATERIAL_NODE_OP_DIV, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        case Baikal::InputMapType::kMin:
+            status = LoadTwoArgInput(context, material_system, RPR_MATERIAL_NODE_OP_MIN, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        case Baikal::InputMapType::kMax:
+            status = LoadTwoArgInput(context, material_system, RPR_MATERIAL_NODE_OP_MAX, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        case Baikal::InputMapType::kDot3:
+            status = LoadTwoArgInput(context, material_system, RPR_MATERIAL_NODE_OP_DOT3, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        case Baikal::InputMapType::kDot4:
+            status = LoadTwoArgInput(context, material_system, RPR_MATERIAL_NODE_OP_DOT4, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        case Baikal::InputMapType::kCross3:
+        case Baikal::InputMapType::kCross4:
+            status = LoadTwoArgInput(context, material_system, RPR_MATERIAL_NODE_OP_CROSS3, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        case Baikal::InputMapType::kPow:
+            status = LoadTwoArgInput(context, material_system, RPR_MATERIAL_NODE_OP_POW, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        case Baikal::InputMapType::kMod:
+            status = LoadTwoArgInput(context, material_system, RPR_MATERIAL_NODE_OP_MOD, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
 //        //Single input
-//        case InputMap::InputMapType::kSin:
+//        case Baikal::InputMapType::kSin:
 //            result = LoadOneArgInput<InputMap_Sin>(io, element, input_map_cache, loaded_inputs);
 //            break;
-//        case InputMap::InputMapType::kCos:
+//        case Baikal::InputMapType::kCos:
 //            result = LoadOneArgInput<InputMap_Cos>(io, element, input_map_cache, loaded_inputs);
 //            break;
-//        case InputMap::InputMapType::kTan:
+//        case Baikal::InputMapType::kTan:
 //            result = LoadOneArgInput<InputMap_Tan>(io, element, input_map_cache, loaded_inputs);
 //            break;
-//        case InputMap::InputMapType::kAsin:
+//        case Baikal::InputMapType::kAsin:
 //            result = LoadOneArgInput<InputMap_Asin>(io, element, input_map_cache, loaded_inputs);
 //            break;
-//        case InputMap::InputMapType::kAcos:
+//        case Baikal::InputMapType::kAcos:
 //            result = LoadOneArgInput<InputMap_Acos>(io, element, input_map_cache, loaded_inputs);
 //            break;
-//        case InputMap::InputMapType::kAtan:
+//        case Baikal::InputMapType::kAtan:
 //            result = LoadOneArgInput<InputMap_Atan>(io, element, input_map_cache, loaded_inputs);
 //            break;
-//        case InputMap::InputMapType::kLength3:
+//        case Baikal::InputMapType::kLength3:
 //            result = LoadOneArgInput<InputMap_Length3>(io, element, input_map_cache, loaded_inputs);
 //            break;
-//        case InputMap::InputMapType::kNormalize3:
+//        case Baikal::InputMapType::kNormalize3:
 //            result = LoadOneArgInput<InputMap_Normalize3>(io, element, input_map_cache, loaded_inputs);
 //            break;
-//        case InputMap::InputMapType::kFloor:
+//        case Baikal::InputMapType::kFloor:
 //            result = LoadOneArgInput<InputMap_Floor>(io, element, input_map_cache, loaded_inputs);
 //            break;
-//        case InputMap::InputMapType::kAbs:
+//        case Baikal::InputMapType::kAbs:
 //            result = LoadOneArgInput<InputMap_Abs>(io, element, input_map_cache, loaded_inputs);
 //            break;
 //        // Specials
-//        case InputMap::InputMapType::kLerp:
+//        case Baikal::InputMapType::kLerp:
 //        {
 //            uint32_t arg1_id = element->UnsignedAttribute("input0");
 //            uint32_t arg2_id = element->UnsignedAttribute("input1");
@@ -957,7 +1034,7 @@ rpr_int MaterialIoXML::WriteArithmeticInput(XMLPrinter& printer, const rpr_mater
 //            result = InputMap_Lerp::Create(arg1, arg2, control);
 //            break;
 //        }
-//        case InputMap::InputMapType::kSelect:
+//        case Baikal::InputMapType::kSelect:
 //        {
 //            uint32_t arg1_id = element->UnsignedAttribute("input0");
 //            InputMap::Ptr arg1 = LoadInputMap(io, input_map_cache.at(arg1_id), input_map_cache, loaded_inputs);
@@ -967,7 +1044,7 @@ rpr_int MaterialIoXML::WriteArithmeticInput(XMLPrinter& printer, const rpr_mater
 //            result = InputMap_Select::Create(arg1, selection);
 //            break;
 //        }
-//        case InputMap::InputMapType::kShuffle:
+//        case Baikal::InputMapType::kShuffle:
 //        {
 //            uint32_t arg1_id = element->UnsignedAttribute("input0");
 //            InputMap::Ptr arg1 = LoadInputMap(io, input_map_cache.at(arg1_id), input_map_cache, loaded_inputs);
@@ -978,7 +1055,7 @@ rpr_int MaterialIoXML::WriteArithmeticInput(XMLPrinter& printer, const rpr_mater
 //            result = InputMap_Shuffle::Create(arg1, mask);
 //            break;
 //        }
-//        case InputMap::InputMapType::kShuffle2:
+//        case Baikal::InputMapType::kShuffle2:
 //        {
 //            uint32_t arg1_id = element->UnsignedAttribute("input0");
 //            InputMap::Ptr arg1 = LoadInputMap(io, input_map_cache.at(arg1_id), input_map_cache, loaded_inputs);
@@ -992,7 +1069,7 @@ rpr_int MaterialIoXML::WriteArithmeticInput(XMLPrinter& printer, const rpr_mater
 //            result = InputMap_Shuffle2::Create(arg1, arg2, mask);
 //            break;
 //        }
-//        case InputMap::InputMapType::kMatMul:
+//        case Baikal::InputMapType::kMatMul:
 //        {
 //            uint32_t arg1_id = element->UnsignedAttribute("input0");
 //            InputMap::Ptr arg1 = LoadInputMap(io, input_map_cache.at(arg1_id), input_map_cache, loaded_inputs);
@@ -1010,7 +1087,7 @@ rpr_int MaterialIoXML::WriteArithmeticInput(XMLPrinter& printer, const rpr_mater
 //            result = InputMap_MatMul::Create(arg1, mat);
 //            break;
 //        }
-//        case InputMap::InputMapType::kRemap:
+//        case Baikal::InputMapType::kRemap:
 //        {
 //            uint32_t src_id = element->UnsignedAttribute("src");
 //            InputMap::Ptr src = LoadInputMap(io, input_map_cache.at(src_id), input_map_cache, loaded_inputs);
@@ -1027,4 +1104,6 @@ rpr_int MaterialIoXML::WriteArithmeticInput(XMLPrinter& printer, const rpr_mater
 //    result->SetName(name);
 //    loaded_inputs.insert(std::make_pair(id, result));
 //    return result;
-//}
+
+    return RPR_SUCCESS;
+}
