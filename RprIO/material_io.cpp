@@ -881,9 +881,8 @@ rpr_int MaterialIoXML::LoadTwoArgInput(rpr_context context, rpr_material_system 
     RETURN_IF_FAILED(status);
 
     status = LoadInput(context, material_system, material_node, "color1", arg2_id, xml_inputs);
-    RETURN_IF_FAILED(status);
+    return status;
 
-    return RPR_SUCCESS;
 }
 
 rpr_int MaterialIoXML::LoadOneArgInput(rpr_context context, rpr_material_system material_system, rpr_uint operation,
@@ -900,9 +899,10 @@ rpr_int MaterialIoXML::LoadOneArgInput(rpr_context context, rpr_material_system 
     RETURN_IF_FAILED(status);
 
     status = LoadInput(context, material_system, material_node, "color0", arg1_id, xml_inputs);
-    RETURN_IF_FAILED(status);
+    return status;
 
 }
+
 rpr_int MaterialIoXML::LoadNodeInput(rpr_context context, rpr_material_system material_system,
     XMLElement * xml_input, std::map<std::int64_t, XMLElement*> const & xml_inputs, rpr_material_node * out_node)
 {
@@ -1118,7 +1118,7 @@ rpr_int MaterialIoXML::LoadNodeInput(rpr_context context, rpr_material_system ma
 //            result = InputMap_Remap::Create(src, dst, data);
 //            break;
 //        }
-//    }
+    }
 //
 //    result->SetName(name);
 //    loaded_inputs.insert(std::make_pair(id, result));

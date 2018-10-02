@@ -21,7 +21,7 @@ rpr_int rprReplaceSceneMaterials(rpr_char const* materials_xml, rpr_char const* 
     MaterialIo::MaterialMap material_mapping = material_io->LoadMaterialMapping(mapping_xml);
 
     std::map<std::string, rpr_material_node> new_materials;
-    rpr_int status = material_io->LoadMaterials(materials_xml, materialSystem, new_materials);
+    rpr_int status = material_io->LoadMaterials(materials_xml, context, materialSystem, new_materials);
     RETURN_IF_FAILED(status);
 
     return material_io->ReplaceSceneMaterials(scene, new_materials, material_mapping);
