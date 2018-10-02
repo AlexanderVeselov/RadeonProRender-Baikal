@@ -125,8 +125,8 @@ private:
         std::map<std::int64_t, XMLElement*> const& xml_inputs, rpr_material_node* out_node);
     // Load single material
     rpr_int LoadMaterial(rpr_context context, rpr_material_system material_system, XMLElement& element, std::map<std::int64_t, XMLElement*> const& xml_input_maps, std::map<std::string, rpr_material_node> & out_materials);
-//    rpr_int LoadOneArgInput(rpr_context context, rpr_material_system material_system, XMLElement* xml_input,
-//        std::map<std::int64_t, XMLElement*> const& xml_inputs, rpr_material_node* out_node) const;
+    rpr_int LoadOneArgInput(rpr_context context, rpr_material_system material_system, rpr_uint operation,
+        XMLElement* xml_input, std::map<std::int64_t, XMLElement*> const& xml_inputs, rpr_material_node* out_node);
     rpr_int LoadTwoArgInput(rpr_context context, rpr_material_system material_system, rpr_uint operation,
         XMLElement* xml_input, std::map<std::int64_t, XMLElement*> const& xml_inputs, rpr_material_node* out_node);
 
@@ -885,15 +885,24 @@ rpr_int MaterialIoXML::LoadTwoArgInput(rpr_context context, rpr_material_system 
 
     return RPR_SUCCESS;
 }
-//
-//rpr_int MaterialIoXML::LoadOneArgInput(rpr_context context, rpr_material_system material_system,
-//    XMLElement* xml_input, std::map<std::int64_t, XMLElement*> const& xml_inputs, rpr_material_node* out_node) const
-//{
-//    uint32_t arg1_id = element->UnsignedAttribute("input0");
-//    InputMap::Ptr arg1 = LoadInputMap(io, input_map_cache.at(arg1_id), input_map_cache, loaded_inputs);
-//
-//    return T::Create(arg1);
-//}
+
+rpr_int MaterialIoXML::LoadOneArgInput(rpr_context context, rpr_material_system material_system, rpr_uint operation,
+    XMLElement* xml_input, std::map<std::int64_t, XMLElement*> const& xml_inputs, rpr_material_node* out_node)
+{
+    assert(out_node);
+    std::int64_t arg1_id = xml_input->Int64Attribute("input0");
+
+    rpr_material_node material_node = nullptr;
+    rpr_int status = rprMaterialSystemCreateNode(material_system, RPR_MATERIAL_NODE_ARITHMETIC, &material_node);
+    RETURN_IF_FAILED(status);
+
+    status = rprMaterialNodeSetInputU(material_node, "op", operation);
+    RETURN_IF_FAILED(status);
+
+    status = LoadInput(context, material_system, material_node, "color0", arg1_id, xml_inputs);
+    RETURN_IF_FAILED(status);
+
+}
 rpr_int MaterialIoXML::LoadNodeInput(rpr_context context, rpr_material_system material_system,
     XMLElement * xml_input, std::map<std::int64_t, XMLElement*> const & xml_inputs, rpr_material_node * out_node)
 {
@@ -990,37 +999,47 @@ rpr_int MaterialIoXML::LoadNodeInput(rpr_context context, rpr_material_system ma
             status = LoadTwoArgInput(context, material_system, RPR_MATERIAL_NODE_OP_MOD, xml_input, xml_inputs, &input_node);
             RETURN_IF_FAILED(status);
             break;
-//        //Single input
-//        case Baikal::InputMapType::kSin:
-//            result = LoadOneArgInput<InputMap_Sin>(io, element, input_map_cache, loaded_inputs);
-//            break;
-//        case Baikal::InputMapType::kCos:
-//            result = LoadOneArgInput<InputMap_Cos>(io, element, input_map_cache, loaded_inputs);
-//            break;
-//        case Baikal::InputMapType::kTan:
-//            result = LoadOneArgInput<InputMap_Tan>(io, element, input_map_cache, loaded_inputs);
-//            break;
-//        case Baikal::InputMapType::kAsin:
-//            result = LoadOneArgInput<InputMap_Asin>(io, element, input_map_cache, loaded_inputs);
-//            break;
-//        case Baikal::InputMapType::kAcos:
-//            result = LoadOneArgInput<InputMap_Acos>(io, element, input_map_cache, loaded_inputs);
-//            break;
-//        case Baikal::InputMapType::kAtan:
-//            result = LoadOneArgInput<InputMap_Atan>(io, element, input_map_cache, loaded_inputs);
-//            break;
-//        case Baikal::InputMapType::kLength3:
-//            result = LoadOneArgInput<InputMap_Length3>(io, element, input_map_cache, loaded_inputs);
-//            break;
-//        case Baikal::InputMapType::kNormalize3:
-//            result = LoadOneArgInput<InputMap_Normalize3>(io, element, input_map_cache, loaded_inputs);
-//            break;
-//        case Baikal::InputMapType::kFloor:
-//            result = LoadOneArgInput<InputMap_Floor>(io, element, input_map_cache, loaded_inputs);
-//            break;
-//        case Baikal::InputMapType::kAbs:
-//            result = LoadOneArgInput<InputMap_Abs>(io, element, input_map_cache, loaded_inputs);
-//            break;
+        //Single input
+        case Baikal::InputMapType::kSin:
+            status = LoadOneArgInput(context, material_system, RPR_MATERIAL_NODE_OP_SIN, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        case Baikal::InputMapType::kCos:
+            status = LoadOneArgInput(context, material_system, RPR_MATERIAL_NODE_OP_COS, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        case Baikal::InputMapType::kTan:
+            status = LoadOneArgInput(context, material_system, RPR_MATERIAL_NODE_OP_TAN, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        case Baikal::InputMapType::kAsin:
+            status = LoadOneArgInput(context, material_system, RPR_MATERIAL_NODE_OP_ASIN, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        case Baikal::InputMapType::kAcos:
+            status = LoadOneArgInput(context, material_system, RPR_MATERIAL_NODE_OP_ACOS, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        case Baikal::InputMapType::kAtan:
+            status = LoadOneArgInput(context, material_system, RPR_MATERIAL_NODE_OP_ATAN, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        case Baikal::InputMapType::kLength3:
+            status = LoadOneArgInput(context, material_system, RPR_MATERIAL_NODE_OP_LENGTH3, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        case Baikal::InputMapType::kNormalize3:
+            status = LoadOneArgInput(context, material_system, RPR_MATERIAL_NODE_OP_NORMALIZE3, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        case Baikal::InputMapType::kFloor:
+            status = LoadOneArgInput(context, material_system, RPR_MATERIAL_NODE_OP_FLOOR, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        case Baikal::InputMapType::kAbs:
+            status = LoadOneArgInput(context, material_system, RPR_MATERIAL_NODE_OP_ABS, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
 //        // Specials
 //        case Baikal::InputMapType::kLerp:
 //        {
