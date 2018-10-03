@@ -803,22 +803,22 @@ rpr_int MaterialIoXML::WriteArithmeticInput(XMLPrinter& printer, const rpr_mater
     // kLerp - not present in standard RPR
     case RPR_MATERIAL_NODE_OP_SELECT_X:
         printer.PushAttribute("input0", child_ids["color0"]);
-        printer.PushAttribute("selection", 0);
+        printer.PushAttribute("selection", 0u);
         break;
 
     case RPR_MATERIAL_NODE_OP_SELECT_Y:
         printer.PushAttribute("input0", child_ids["color0"]);
-        printer.PushAttribute("selection", 1);
+        printer.PushAttribute("selection", 1u);
         break;
 
     case RPR_MATERIAL_NODE_OP_SELECT_Z:
         printer.PushAttribute("input0", child_ids["color0"]);
-        printer.PushAttribute("selection", 2);
+        printer.PushAttribute("selection", 2u);
         break;
 
     case RPR_MATERIAL_NODE_OP_SELECT_W:
         printer.PushAttribute("input0", child_ids["color0"]);
-        printer.PushAttribute("selection", 3);
+        printer.PushAttribute("selection", 3u);
         break;
 
     case RPR_MATERIAL_NODE_OP_AVERAGE_XYZ:
@@ -1048,54 +1048,74 @@ rpr_int MaterialIoXML::LoadNodeInput(rpr_context context, rpr_material_system ma
             status = LoadOneArgInput(context, material_system, RPR_MATERIAL_NODE_OP_ABS, xml_input, xml_inputs, &input_node);
             RETURN_IF_FAILED(status);
             break;
-//        // Specials
-//        case Baikal::InputMapType::kLerp:
-//        {
-//            uint32_t arg1_id = element->UnsignedAttribute("input0");
-//            uint32_t arg2_id = element->UnsignedAttribute("input1");
-//            uint32_t control_id = element->UnsignedAttribute("control");
-//            InputMap::Ptr arg1 = LoadInputMap(io, input_map_cache.at(arg1_id), input_map_cache, loaded_inputs);
-//            InputMap::Ptr arg2 = LoadInputMap(io, input_map_cache.at(arg2_id), input_map_cache, loaded_inputs);
-//            InputMap::Ptr control = LoadInputMap(io, input_map_cache.at(control_id), input_map_cache, loaded_inputs);
-//
-//            result = InputMap_Lerp::Create(arg1, arg2, control);
-//            break;
-//        }
-//        case Baikal::InputMapType::kSelect:
-//        {
-//            uint32_t arg1_id = element->UnsignedAttribute("input0");
-//            InputMap::Ptr arg1 = LoadInputMap(io, input_map_cache.at(arg1_id), input_map_cache, loaded_inputs);
-//            InputMap_Select::Selection selection = 
-//                static_cast<InputMap_Select::Selection>(element->UnsignedAttribute("selection"));
-//
-//            result = InputMap_Select::Create(arg1, selection);
-//            break;
-//        }
-//        case Baikal::InputMapType::kShuffle:
-//        {
-//            uint32_t arg1_id = element->UnsignedAttribute("input0");
-//            InputMap::Ptr arg1 = LoadInputMap(io, input_map_cache.at(arg1_id), input_map_cache, loaded_inputs);
-//            std::array<uint32_t, 4> mask;
-//            std::istringstream iss(element->Attribute("mask"));
-//            iss >> mask[0] >> mask[1] >> mask[2] >> mask[3];
-//
-//            result = InputMap_Shuffle::Create(arg1, mask);
-//            break;
-//        }
-//        case Baikal::InputMapType::kShuffle2:
-//        {
-//            uint32_t arg1_id = element->UnsignedAttribute("input0");
-//            InputMap::Ptr arg1 = LoadInputMap(io, input_map_cache.at(arg1_id), input_map_cache, loaded_inputs);
-//            uint32_t arg2_id = element->UnsignedAttribute("input1");
-//            InputMap::Ptr arg2 = LoadInputMap(io, input_map_cache.at(arg2_id), input_map_cache, loaded_inputs);
-//
-//            std::array<uint32_t, 4> mask;
-//            std::istringstream iss(element->Attribute("mask"));
-//            iss >> mask[0] >> mask[1] >> mask[2] >> mask[3];
-//
-//            result = InputMap_Shuffle2::Create(arg1, arg2, mask);
-//            break;
-//        }
+        // Specials
+        case Baikal::InputMapType::kLerp:
+        {
+            // Ignore "control" attribute!!! (Since we cannot set it in RPR layer)
+            status = LoadTwoArgInput(context, material_system, RPR_MATERIAL_NODE_OP_AVERAGE, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        }
+        case Baikal::InputMapType::kSelect:
+        {
+            std::uint32_t selection = xml_input->UnsignedAttribute("selection");
+            rpr_uint operation;
+            switch (selection)
+            {
+            case 0:
+                operation = RPR_MATERIAL_NODE_OP_SELECT_X;
+                break;
+            case 1:
+                operation = RPR_MATERIAL_NODE_OP_SELECT_Y;
+                break;
+            case 2:
+                operation = RPR_MATERIAL_NODE_OP_SELECT_Z;
+                break;
+            case 3:
+                operation = RPR_MATERIAL_NODE_OP_SELECT_W;
+                break;
+            default:
+                // Unsupported RPR operation
+                return RPR_ERROR_UNSUPPORTED;
+            }
+
+            status = LoadTwoArgInput(context, material_system, operation, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        }
+        case Baikal::InputMapType::kShuffle:
+        {
+            rpr_uint operation;
+            char const* mask = xml_input->Attribute("mask");
+            if (strcmp(mask, "1 2 3 0") == 0)
+            {
+                operation = RPR_MATERIAL_NODE_OP_SHUFFLE_YZWX;
+            }
+            else if (strcmp(mask, "2 3 0 1") == 0)
+            {
+                operation = RPR_MATERIAL_NODE_OP_SHUFFLE_ZWXY;
+            }
+            else if (strcmp(mask, "3 0 1 2") == 0)
+            {
+                operation = RPR_MATERIAL_NODE_OP_SHUFFLE_WXYZ;
+            }
+            else
+            {
+                // Unsupported RPR operation
+                return RPR_ERROR_UNSUPPORTED;
+            }
+            status = LoadOneArgInput(context, material_system, operation, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+
+            break;
+        }
+        case Baikal::InputMapType::kShuffle2:
+        {
+            // Ignore "mask" attribute!!! (Since we cannot set it in RPR layer)
+            status = LoadTwoArgInput(context, material_system, RPR_MATERIAL_NODE_OP_COMBINE, xml_input, xml_inputs, &input_node);
+            RETURN_IF_FAILED(status);
+            break;
+        }
 //        case Baikal::InputMapType::kMatMul:
 //        {
 //            uint32_t arg1_id = element->UnsignedAttribute("input0");
@@ -1127,7 +1147,9 @@ rpr_int MaterialIoXML::LoadNodeInput(rpr_context context, rpr_material_system ma
 //            break;
 //        }
         default:
-            assert(!"Not implemented");
+        {
+            return RPR_ERROR_UNSUPPORTED;
+        }
     }
 
     status = rprObjectSetName(input_node, xml_input->Attribute("name"));
