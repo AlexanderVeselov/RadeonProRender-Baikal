@@ -13,11 +13,18 @@
 
 using namespace tinyxml2;
 
-#define RETURN_IF_FAILED(status) \
-    if ((status) != RPR_SUCCESS) \
-    {                            \
-        return (status);         \
-    }
+//#define RETURN_IF_FAILED(status) \
+//    if ((status) != RPR_SUCCESS) \
+//    {                            \
+//        return (status);         \
+//    }
+
+void RETURN_IF_FAILED(rpr_int status)
+{
+    if (status != RPR_SUCCESS)
+    printf("%d\n", status);
+
+}
 
 namespace Baikal
 {
@@ -881,6 +888,8 @@ rpr_int MaterialIoXML::LoadTwoArgInput(rpr_context context, rpr_material_system 
     RETURN_IF_FAILED(status);
 
     status = LoadInput(context, material_system, material_node, "color1", arg2_id, xml_inputs);
+
+    *out_node = material_node;
     return status;
 
 }
@@ -908,7 +917,6 @@ rpr_int MaterialIoXML::LoadNodeInput(rpr_context context, rpr_material_system ma
 {
     assert(out_node);
 
-    rpr_char const* input_name = xml_input->Attribute("name");
     std::int64_t id = xml_input->UnsignedAttribute("id");
 
     auto input = m_loaded_inputs.find(id);
@@ -1118,11 +1126,16 @@ rpr_int MaterialIoXML::LoadNodeInput(rpr_context context, rpr_material_system ma
 //            result = InputMap_Remap::Create(src, dst, data);
 //            break;
 //        }
+        default:
+            assert(!"Not implemented");
     }
-//
-//    result->SetName(name);
-//    loaded_inputs.insert(std::make_pair(id, result));
-//    return result;
+
+    status = rprObjectSetName(input_node, xml_input->Attribute("name"));
+    RETURN_IF_FAILED(status);
+
+    m_loaded_inputs.insert(std::make_pair(id, input_node));
+
+    *out_node = input_node;
 
     return RPR_SUCCESS;
 }
