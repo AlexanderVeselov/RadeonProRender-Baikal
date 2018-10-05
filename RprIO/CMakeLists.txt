@@ -98,7 +98,7 @@ target_compile_definitions(RadeonProRenderIO PRIVATE RPRIO_EXPORT_API)
 target_compile_features(RadeonProRenderIO PRIVATE cxx_std_14)
 target_include_directories(RadeonProRenderIO PUBLIC . )
 target_include_directories(RadeonProRenderIO PRIVATE ${BaikalNext_SOURCE_DIR}/3rdparty/tinyobjloader)
-target_link_libraries(RadeonProRenderIO PRIVATE RadeonProRender64 RprSupport64)
+target_link_libraries(RadeonProRenderIO PRIVATE RadeonProRender64 RprSupport64 OpenImageIO::OpenImageIO)
 
 if (BAIKAL_NEXT_ENABLE_GLTF)
     target_link_libraries(RadeonProRenderIO PRIVATE RprGltf)

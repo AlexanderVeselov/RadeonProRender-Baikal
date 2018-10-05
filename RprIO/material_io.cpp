@@ -9,7 +9,7 @@
 #include <stack>
 #include <string>
 #include <cassert>
-
+#include <OpenImageIO/imageio.h>
 
 using namespace tinyxml2;
 
@@ -118,7 +118,7 @@ public:
 
 private:
     //
-    // Write to XML functions
+    // Functions for writing to XML
     //
 
     // Write single material
@@ -135,15 +135,16 @@ private:
 
 private:
     //
-    // Load materials from XML functions
+    // Functions for loading from XML
     //
 
+    // Load single material
+    rpr_int LoadMaterial(XMLElement& element, std::map<std::string, rpr_material_node> & out_materials);
     // Load single input
     rpr_int LoadInput(rpr_material_node material, rpr_char const* input_name, std::int64_t input_id);
     // Helper function to load input, if it is a node
     rpr_int LoadNodeInput(XMLElement const* xml_input, rpr_material_node* out_node);
-    // Load single material
-    rpr_int LoadMaterial(XMLElement& element, std::map<std::string, rpr_material_node> & out_materials);
+    // Load one argument or two argument input
     rpr_int LoadOneArgInput(rpr_uint operation, XMLElement const* xml_input, rpr_material_node* out_node);
     rpr_int LoadTwoArgInput(rpr_uint operation, XMLElement const* xml_input, rpr_material_node* out_node);
 
@@ -153,8 +154,8 @@ private:
     rpr_material_system material_system_;
 
     // Texture to name map and back
-    std::map<rpr_image, std::string> tex2name_;
-    std::map<std::string, rpr_image> name2tex_;
+    std::map<rpr_image, std::string> saved_images_;
+    std::map<std::string, rpr_image> loaded_images_;
 
     // Map from input id to raw input map XML element
     std::map<std::int64_t, XMLElement*> xml_input_maps_;
@@ -170,6 +171,7 @@ private:
 MaterialIoXML::MaterialIoXML(rpr_context context, rpr_material_system material_system)
     : context_(context)
     , material_system_(material_system)
+    , current_material_index_(0)
 {}
 
 std::unique_ptr<MaterialIo> MaterialIo::CreateMaterialIoXML(rpr_context context, rpr_material_system material_system)
@@ -193,16 +195,6 @@ static std::string Matrix4x4ToString(rpr_float const matrix[4][4])
         {
             oss << matrix[i][j] << " ";
         }
-    }
-    return oss.str();
-}
-
-static std::string ArrayToString(rpr_uint const* array, rpr_uint size)
-{
-    std::ostringstream oss;
-    for (auto a = 0u; a < size; ++a)
-    {
-        oss << array[a] << " ";
     }
     return oss.str();
 }
@@ -243,11 +235,11 @@ rpr_int MaterialIoXML::WriteMaterial(XMLPrinter& printer, const rpr_material_nod
     RETURN_IF_FAILED(status);
     printer.PushAttribute("layers", layers);
 
-    std::uint64_t nuinputs_ = 0;
-    status = rprMaterialNodeGetInfo(material, RPR_MATERIAL_NODE_INPUT_COUNT, 0, &nuinputs_, nullptr);
+    std::uint64_t num_inputs = 0;
+    status = rprMaterialNodeGetInfo(material, RPR_MATERIAL_NODE_INPUT_COUNT, 0, &num_inputs, nullptr);
     RETURN_IF_FAILED(status);
 
-    for (rpr_int i = 0; i < nuinputs_; ++i)
+    for (rpr_int i = 0; i < num_inputs; ++i)
     {
         // Skip "uberv2.layers"
         rpr_char input_name[256];
@@ -722,13 +714,55 @@ rpr_int MaterialIoXML::WriteTextureInput(XMLPrinter& printer, const rpr_material
     rpr_int status = rprMaterialNodeGetInputInfo(input_node, 0, RPR_MATERIAL_NODE_INPUT_VALUE, sizeof(image), &image, nullptr);
     RETURN_IF_FAILED(status);
 
-    rpr_char image_name[256];
-    status = rprImageGetInfo(image, RPR_OBJECT_NAME, sizeof(image_name), image_name, nullptr);
-    RETURN_IF_FAILED(status);
-
     rpr_char input_name[256];
     status = rprMaterialNodeGetInfo(input_node, RPR_OBJECT_NAME, sizeof(input_name), input_name, nullptr);
     RETURN_IF_FAILED(status);
+
+    std::string fname;
+
+    auto iter = saved_images_.find(image);
+    if (iter != saved_images_.end())
+    {
+        fname = iter->second;
+    }
+    else
+    {
+        rpr_char image_name[256];
+        status = rprImageGetInfo(image, RPR_OBJECT_NAME, sizeof(image_name), image_name, nullptr);
+        RETURN_IF_FAILED(status);
+
+        if (strcmp(input_name, "") == 0)
+        {
+            std::ostringstream oss;
+            oss << reinterpret_cast<std::size_t>(image) << ".jpg";
+            fname = oss.str();
+
+            OIIO_NAMESPACE_USING;
+
+            std::unique_ptr<ImageOutput> out{ ImageOutput::create(base_path_ + fname) };
+
+            if (!out)
+            {
+                throw std::runtime_error("Can't create image file on disk");
+            }
+
+            auto dim = texture->GetSize();
+            auto fmt = GetTextureFormat(texture->GetFormat());
+
+            ImageSpec spec(dim.x, dim.y, 4, fmt);
+
+            out->open(filename, spec);
+
+            out->write_image(fmt, texture->GetData());
+
+            out->close();
+
+        }
+        else
+        {
+            fname = image_name;
+        }
+    }
 
     printer.OpenElement("Input");
     {
@@ -963,8 +997,8 @@ rpr_int MaterialIoXML::LoadNodeInput(XMLElement const* xml_input, rpr_material_n
             rpr_image image = nullptr;
 
             // Check if we have already loaded this image
-            auto iter = name2tex_.find(image_filename);
-            if (iter != name2tex_.cend())
+            auto iter = loaded_images_.find(image_filename);
+            if (iter != loaded_images_.cend())
             {
                 image = iter->second;
             }
@@ -974,7 +1008,7 @@ rpr_int MaterialIoXML::LoadNodeInput(XMLElement const* xml_input, rpr_material_n
                 RETURN_IF_FAILED(status);
                 status = rprObjectSetName(image, image_filename.c_str());
                 RETURN_IF_FAILED(status);
-                name2tex_.insert(std::make_pair(image_filename, image));
+                loaded_images_.insert(std::make_pair(image_filename, image));
             }
 
             status = rprMaterialSystemCreateNode(material_system_, RPR_MATERIAL_NODE_IMAGE_TEXTURE, &input_node);
