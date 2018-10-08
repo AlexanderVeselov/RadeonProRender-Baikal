@@ -401,7 +401,7 @@ rpr_int MaterialIoXML::LoadMaterial(XMLElement& element, std::map<std::string, r
         std::string input_name = layer_attribute->Name();
 
         // Skip non-uberv2 inputs
-        if (input_name.substr(0, 6) == "uberv2")
+        if (input_name.substr(0, 6) != "uberv2")
         {
             continue;
         }
@@ -464,7 +464,10 @@ rpr_int MaterialIo::SaveMaterialsFromScene(rpr_char const* filename, rpr_char co
         rpr_material_node material = nullptr;
         status = rprShapeGetInfo(shape, RPR_SHAPE_MATERIAL, sizeof(material), &material, nullptr);
         RETURN_IF_FAILED(status);
-        materials.insert(material);
+        if (material)
+        {
+            materials.insert(material);
+        }
     }
 
     status = SaveMaterials(filename, basepath, materials);
@@ -488,6 +491,11 @@ rpr_int MaterialIo::ReplaceSceneMaterials(rpr_scene scene, std::map<std::string,
         rpr_material_node material = nullptr;
         status = rprShapeGetInfo(shape, RPR_SHAPE_MATERIAL, sizeof(material), &material, nullptr);
         RETURN_IF_FAILED(status);
+
+        if (!material)
+        {
+            continue;
+        }
 
         rpr_char material_name[256];
         status = rprMaterialNodeGetInfo(material, RPR_OBJECT_NAME, 0, material_name, nullptr);
