@@ -65,11 +65,14 @@ private:
     std::map<std::string, SceneIo::Loader*> m_loaders;
 };
 
-#define RETURN_IF_FAILED(status) \
-    if ((status) != RPR_SUCCESS) \
-    {                            \
-        return (status);         \
-    }
+//#define RETURN_IF_FAILED(status) \
+//    if ((status) != RPR_SUCCESS) \
+//    {                            \
+//        return (status);         \
+//    }
+
+void RETURN_IF_FAILED(rpr_int status);
+
 
 inline void SceneIo::RegisterLoader(rpr_char const* ext, SceneIo::Loader *loader)
 {
@@ -160,8 +163,29 @@ inline rpr_int SceneIo::Loader::LoadImage(rpr_char const* filename,
     }
 
     rpr_image image = nullptr;
-    rpr_int status = rprContextCreateImageFromFile(context, fname.c_str(), &image);
-    RETURN_IF_FAILED(status);
+    rpr_int status = RPR_SUCCESS;
+    if (std::experimental::filesystem::exists(fname))
+    {
+        status = rprContextCreateImageFromFile(context, fname.c_str(), &image);
+        RETURN_IF_FAILED(status);
+    }
+    else
+    {
+        // Create black 32x32 image
+        rpr_image_desc imageDesc = {};
+        imageDesc.image_width = 32;
+        imageDesc.image_height = 32;
+        imageDesc.image_depth = 1;
+        imageDesc.image_row_pitch = imageDesc.image_width * sizeof(char) * 4;
+        imageDesc.image_slice_pitch = imageDesc.image_width * imageDesc.image_height * sizeof(char) * 4;
+
+        rpr_image_format imageFormat = {4, RPR_COMPONENT_TYPE_UINT8 };
+
+        std::vector<char> dataImage(imageDesc.image_width  *  imageDesc.image_height * 4, 0);
+        status = rprContextCreateImage(context, imageFormat, &imageDesc, dataImage.data(), &image);
+        RETURN_IF_FAILED(status);
+
+    }
 
     status = rprObjectSetName(image, filename);
     RETURN_IF_FAILED(status);

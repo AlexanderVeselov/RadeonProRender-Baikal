@@ -107,6 +107,16 @@ static const std::map<rpr_int, unsigned> kArithmeticOpRpr2Baikal =
     //{ RPR_MATERIAL_NODE_OP_LOG, ??? },          // Not present in Baikal
 };
 
+// Inputs that doesn't present in Baikal and used by RPR layer
+static const std::set<std::string> kSkippedInputs =
+{
+    "uberv2.layers",
+    "uberv2.refraction.ior_mode",
+    "uberv2.refraction.thin_surface",
+    "uberv2.emission.mode",
+    "uberv2.sss.multiscatter"
+};
+
 // XML based material IO implememtation
 class MaterialIoXML : public MaterialIo
 {
@@ -242,11 +252,11 @@ rpr_int MaterialIoXML::WriteMaterial(XMLPrinter& printer, const rpr_material_nod
 
     for (rpr_int i = 0; i < num_inputs; ++i)
     {
-        // Skip "uberv2.layers"
+        // Skip inputs
         rpr_char input_name[256];
         status = rprMaterialNodeGetInputInfo(material, i, RPR_MATERIAL_NODE_INPUT_NAME_STRING, 0, &input_name, nullptr);
         RETURN_IF_FAILED(status);
-        if (strcmp(input_name, "uberv2.layers") == 0)
+        if (kSkippedInputs.find(input_name) != kSkippedInputs.end())
         {
             continue;
         }
@@ -276,11 +286,11 @@ rpr_int MaterialIoXML::SaveMaterials(rpr_char const* filename, rpr_char const* b
 
     for (rpr_material_node material : materials)
     {
-        std::uint64_t nuinputs_ = 0;
-        status = rprMaterialNodeGetInfo(material, RPR_MATERIAL_NODE_INPUT_COUNT, 0, &nuinputs_, nullptr);
+        std::uint64_t num_inputs = 0;
+        status = rprMaterialNodeGetInfo(material, RPR_MATERIAL_NODE_INPUT_COUNT, 0, &num_inputs, nullptr);
         RETURN_IF_FAILED(status);
 
-        for (auto i = 0; i < nuinputs_; ++i)
+        for (auto i = 0; i < num_inputs; ++i)
         {
             status = WriteInputMap(printer, material, i);
             RETURN_IF_FAILED(status);
@@ -357,7 +367,8 @@ rpr_int MaterialIoXML::LoadMaterial(XMLElement& element, std::map<std::string, r
     rpr_int status = rprMaterialSystemCreateNode(material_system_, RPR_MATERIAL_NODE_UBERV2, &material);
     RETURN_IF_FAILED(status);
 
-    status = rprObjectSetName(material, element.Attribute("name"));
+    char const* material_name = element.Attribute("name");
+    status = rprObjectSetName(material, material_name);
     RETURN_IF_FAILED(status);
 
     status = rprMaterialNodeSetInputU_ext(material, RPR_UBER_MATERIAL_LAYERS, element.UnsignedAttribute("layers"));
@@ -384,6 +395,8 @@ rpr_int MaterialIoXML::LoadMaterial(XMLElement& element, std::map<std::string, r
         status = LoadInput(material, input_name, child_id);
         RETURN_IF_FAILED(status);
     }
+
+    out_materials[material_name] = material;
 
     return RPR_SUCCESS;
 }
@@ -575,12 +588,12 @@ rpr_int MaterialIoXML::GetInputMapId(const rpr_material_node material, rpr_uint 
 
 rpr_int MaterialIoXML::WriteInputMap(XMLPrinter& printer, const rpr_material_node material, rpr_uint input_index, std::int64_t* out_input_id)
 {
-    // Skip "uberv2.layers"
+    // Skip some inputs
     rpr_char input_name[256];
     rpr_int status = rprMaterialNodeGetInputInfo(material, input_index, RPR_MATERIAL_NODE_INPUT_NAME_STRING, sizeof(input_name), &input_name, nullptr);
     RETURN_IF_FAILED(status);
 
-    if (strcmp(input_name, "uberv2.layers") == 0)
+    if (kSkippedInputs.find(input_name) != kSkippedInputs.end())
     {
         return RPR_SUCCESS;
     }
@@ -1004,12 +1017,7 @@ rpr_int MaterialIoXML::LoadNodeInput(XMLElement const* xml_input, rpr_material_n
     case Baikal::InputMapType::kSampler:
     case Baikal::InputMapType::kSamplerBumpmap:
         {
-            std::experimental::filesystem::path image_path(xml_input->Attribute("value"));
-            if (image_path.is_relative())
-            {
-                image_path = base_path_ / image_path;
-            }
-            std::string image_filename = image_path.string();
+            char const* image_filename = xml_input->Attribute("value");
 
             rpr_image image = nullptr;
 
@@ -1021,9 +1029,16 @@ rpr_int MaterialIoXML::LoadNodeInput(XMLElement const* xml_input, rpr_material_n
             }
             else
             {
-                status = rprContextCreateImageFromFile(context_, image_filename.c_str(), &image);
+                std::string full_path;
+                if (std::experimental::filesystem::path(image_filename).is_relative())
+                {
+                    full_path.append(base_path_);
+                }
+                full_path.append(image_filename);
+
+                status = rprContextCreateImageFromFile(context_, full_path.c_str(), &image);
                 RETURN_IF_FAILED(status);
-                status = rprObjectSetName(image, image_filename.c_str());
+                status = rprObjectSetName(image, image_filename);
                 RETURN_IF_FAILED(status);
                 loaded_images_.insert(std::make_pair(image_filename, image));
             }
@@ -1193,8 +1208,13 @@ rpr_int MaterialIoXML::LoadNodeInput(XMLElement const* xml_input, rpr_material_n
             RETURN_IF_FAILED(status);
             break;
         }
-        case Baikal::InputMapType::kMatMul:
         case Baikal::InputMapType::kRemap:
+        {
+            //std::int64_t arg1_id = xml_input->Int64Attribute("data");
+            //status = LoadInput(material_node, "color0", arg1_id);
+            //RETURN_IF_FAILED(status);
+        }
+        case Baikal::InputMapType::kMatMul:
         default:
         {
             return RPR_ERROR_UNSUPPORTED;
