@@ -21,7 +21,7 @@ rpr_int rprReplaceSceneMaterials(rpr_char const* materials_xml, rpr_char const* 
     MaterialIo::MaterialMap material_mapping = material_io->LoadMaterialMapping(mapping_xml);
 
     std::map<std::string, rpr_material_node> new_materials;
-    rpr_int status = material_io->LoadMaterials(materials_xml, new_materials);
+    rpr_int status = material_io->LoadMaterials(materials_xml, basepath, new_materials);
     RETURN_IF_FAILED(status);
 
     return material_io->ReplaceSceneMaterials(scene, new_materials, material_mapping);
@@ -34,6 +34,6 @@ rpr_int rprSaveSceneMaterials(rpr_char const* materials_xml, rpr_char const* map
     rpr_int status = material_io->SaveIdentityMapping(mapping_xml, scene);
     RETURN_IF_FAILED(status);
 
-    return material_io->SaveMaterialsFromScene(materials_xml, scene);
+    return material_io->SaveMaterialsFromScene(materials_xml, basepath, scene);
 
 }

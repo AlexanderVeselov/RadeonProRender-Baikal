@@ -73,37 +73,6 @@ void TextureMaterialObject::CopyData(MaterialObject* in)
     m_tex->SetData(tex_data, size, format);
 }
 
-rpr_image_desc TextureMaterialObject::GetImageDesc() const
-{
-    auto size = m_tex->GetSize();
-    rpr_uint depth = (rpr_uint)m_tex->GetSizeInBytes() / size.x / size.y;
-    return{ (rpr_uint)size.x, (rpr_uint)size.y, depth, 0, 0 };
-}
-char const* TextureMaterialObject::GetImageData() const
-{
-    return m_tex->GetData();
-}
-rpr_image_format TextureMaterialObject::GetImageFormat() const
-{
-    rpr_component_type type;
-    switch (m_tex->GetFormat())
-    {
-    case Baikal::Texture::Format::kRgba8:
-        type = RPR_COMPONENT_TYPE_UINT8;
-        break;
-    case Baikal::Texture::Format::kRgba16:
-        type = RPR_COMPONENT_TYPE_FLOAT16;
-        break;
-    case Baikal::Texture::Format::kRgba32:
-        type = RPR_COMPONENT_TYPE_FLOAT32;
-        break;
-    default:
-        throw Exception(RPR_ERROR_INTERNAL_ERROR, "MaterialObject: invalid image format.");
-    }
-    //only 4component textures used
-    return{ 4, type };
-}
-
 Baikal::Texture::Ptr TextureMaterialObject::GetTexture() 
 {
     return m_tex;

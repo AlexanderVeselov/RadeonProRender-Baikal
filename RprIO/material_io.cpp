@@ -10,6 +10,7 @@
 #include <string>
 #include <cassert>
 #include <OpenImageIO/imageio.h>
+#include <experimental/filesystem>
 
 using namespace tinyxml2;
 
@@ -111,8 +112,8 @@ class MaterialIoXML : public MaterialIo
 {
 public:
     MaterialIoXML(rpr_context context, rpr_material_system material_system);
-    rpr_int LoadMaterials(rpr_char const* filename, std::map<std::string, rpr_material_node> & new_materials) override;
-    rpr_int SaveMaterials(rpr_char const* filename, std::set<rpr_material_node> const& materials) override;
+    rpr_int LoadMaterials(rpr_char const* filename, rpr_char const* basepath, std::map<std::string, rpr_material_node> & new_materials) override;
+    rpr_int SaveMaterials(rpr_char const* filename, rpr_char const* basepath, std::set<rpr_material_node> const& materials) override;
     rpr_int SaveIdentityMapping(rpr_char const* filename, rpr_scene scene) override;
     MaterialMap LoadMaterialMapping(rpr_char const* filename) override;
 
@@ -179,14 +180,14 @@ std::unique_ptr<MaterialIo> MaterialIo::CreateMaterialIoXML(rpr_context context,
     return std::make_unique<MaterialIoXML>(context, material_system);
 }
 
-static std::string Float4ToString(rpr_float value[4])
+std::string Float4ToString(rpr_float value[4])
 {
     std::ostringstream oss;
     oss << value[0] << " " << value[1] << " " << value[2] << " " << value[3];
     return oss.str();
 }
 
-static std::string Matrix4x4ToString(rpr_float const matrix[4][4])
+std::string Matrix4x4ToString(rpr_float const matrix[4][4])
 {
     std::ostringstream oss;
     for (int i = 0; i < 4; ++i)
@@ -262,23 +263,9 @@ rpr_int MaterialIoXML::WriteMaterial(XMLPrinter& printer, const rpr_material_nod
     return RPR_SUCCESS;
 }
 
-rpr_int MaterialIoXML::SaveMaterials(rpr_char const* filename, std::set<rpr_material_node> const& materials)
+rpr_int MaterialIoXML::SaveMaterials(rpr_char const* filename, rpr_char const* basepath, std::set<rpr_material_node> const& materials)
 {
-    //std::string fname(filename);
-    //auto slash = fname.find_last_of('/');
-    //if (slash == std::string::npos)
-    //{
-    //    slash = fname.find_last_of('\\');
-    //}
-
-    //if (slash != std::string::npos)
-    //{
-    //    base_path_.assign(fname.cbegin(), fname.cbegin() + slash + 1);
-    //}
-    //else
-    //{
-    //    base_path_.clear();
-    //}
+    base_path_ = basepath;
 
     XMLDocument doc;
     XMLPrinter printer;
@@ -329,7 +316,7 @@ rpr_int MaterialIoXML::LoadInput(rpr_material_node material,
     XMLElement const* xml_input = it->second;
     switch (xml_input->UnsignedAttribute("type"))
     {
-    case 0:
+    case Baikal::InputMapType::kConstantFloat3:
     {
         // float3/float4 input
         rpr_float value[4];
@@ -339,7 +326,7 @@ rpr_int MaterialIoXML::LoadInput(rpr_material_node material,
         RETURN_IF_FAILED(status);
         break;
     }
-    case 1:
+    case Baikal::InputMapType::kConstantFloat:
     {
         // float input
         rpr_float value = xml_input->FloatAttribute("value");
@@ -401,22 +388,13 @@ rpr_int MaterialIoXML::LoadMaterial(XMLElement& element, std::map<std::string, r
     return RPR_SUCCESS;
 }
 
-rpr_int MaterialIoXML::LoadMaterials(rpr_char const* filename, std::map<std::string, rpr_material_node> & new_materials)
+rpr_int MaterialIoXML::LoadMaterials(rpr_char const* filename, rpr_char const* basepath, std::map<std::string, rpr_material_node> & new_materials)
 {
-//    id2mat_.clear();
-//    name2tex_.clear();
-//
-//    auto slash = file_name.find_last_of('/');
-//    if (slash == std::string::npos) slash = file_name.find_last_of('\\');
-//    if (slash != std::string::npos)
-//        base_path_.assign(file_name.cbegin(), file_name.cbegin() + slash + 1);
-//    else
-//        base_path_.clear();
-//
+    base_path_ = basepath;
+    xml_input_maps_.clear();
+
     XMLDocument doc;
     doc.LoadFile(filename);
-
-    xml_input_maps_.clear();
 
     auto inputs = doc.FirstChildElement("Inputs");
     for (auto element = inputs->FirstChildElement(); element; element = element->NextSiblingElement())
@@ -435,7 +413,7 @@ rpr_int MaterialIoXML::LoadMaterials(rpr_char const* filename, std::map<std::str
     return RPR_SUCCESS;
 }
 
-rpr_int MaterialIo::SaveMaterialsFromScene(rpr_char const* filename, rpr_scene scene)
+rpr_int MaterialIo::SaveMaterialsFromScene(rpr_char const* filename, rpr_char const* basepath, rpr_scene scene)
 {
     std::size_t shape_count = 0;
     rpr_int status = rprSceneGetInfo(scene, RPR_SCENE_SHAPE_COUNT, sizeof(shape_count), &shape_count, nullptr);
@@ -455,7 +433,7 @@ rpr_int MaterialIo::SaveMaterialsFromScene(rpr_char const* filename, rpr_scene s
         materials.insert(material);
     }
 
-    status = SaveMaterials(filename, materials);
+    status = SaveMaterials(filename, basepath, materials);
     RETURN_IF_FAILED(status);
 
     return RPR_SUCCESS;
@@ -572,7 +550,8 @@ rpr_int MaterialIoXML::GetInputMapId(const rpr_material_node material, rpr_uint 
         std::ostringstream oss;
         oss << value[0] << value[1] << value[2] << value[3];
         std::hash<std::string> hash_fn;
-        *out_id = static_cast<std::int64_t>(hash_fn(oss.str()) & 0x7FFF'FFFF'FFFF'FFFF);
+        // Remove sign
+        *out_id = static_cast<std::int64_t>(hash_fn(oss.str()) & ~(1ll << 63));
 
         break;
     }
@@ -707,6 +686,24 @@ rpr_int MaterialIoXML::WriteFloatInput(XMLPrinter& printer, const rpr_material_n
     return RPR_SUCCESS;
 }
 
+OIIO_NAMESPACE::TypeDesc ToOiioFormat(rpr_component_type type)
+{
+    OIIO_NAMESPACE_USING
+
+    if (type == RPR_COMPONENT_TYPE_UINT8)
+    {
+        return  TypeDesc::UINT8;
+    }
+    else if (type == RPR_COMPONENT_TYPE_FLOAT16)
+    {
+        return TypeDesc::HALF;
+    }
+    else
+    {
+        return TypeDesc::FLOAT;
+    }
+}
+
 rpr_int MaterialIoXML::WriteTextureInput(XMLPrinter& printer, const rpr_material_node input_node, std::int64_t input_id)
 {
     // Here we're pretty sure that an image is connected to 0th input
@@ -731,36 +728,54 @@ rpr_int MaterialIoXML::WriteTextureInput(XMLPrinter& printer, const rpr_material
         status = rprImageGetInfo(image, RPR_OBJECT_NAME, sizeof(image_name), image_name, nullptr);
         RETURN_IF_FAILED(status);
 
-        if (strcmp(input_name, "") == 0)
+        if (strcmp(image_name, "") == 0)
         {
             std::ostringstream oss;
             oss << reinterpret_cast<std::size_t>(image) << ".jpg";
             fname = oss.str();
+        }
+        else
+        {
+            fname = image_name;
+        }
 
+        // Save the image if it doesn't present on the drive
+        if (!std::experimental::filesystem::exists(fname))
+        {
             OIIO_NAMESPACE_USING;
 
             std::unique_ptr<ImageOutput> out{ ImageOutput::create(base_path_ + fname) };
 
             if (!out)
             {
-                throw std::runtime_error("Can't create image file on disk");
+                return RPR_ERROR_IO_ERROR;
             }
 
-            auto dim = texture->GetSize();
-            auto fmt = GetTextureFormat(texture->GetFormat());
+            rpr_image_desc image_desc;
+            status = rprImageGetInfo(image, RPR_IMAGE_DESC, sizeof(image_desc), &image_desc, nullptr);
+            RETURN_IF_FAILED(status);
 
-            ImageSpec spec(dim.x, dim.y, 4, fmt);
+            rpr_image_format image_format;
+            status = rprImageGetInfo(image, RPR_IMAGE_FORMAT, sizeof(image_format), &image_format, nullptr);
+            RETURN_IF_FAILED(status);
 
-            out->open(filename, spec);
+            // Get texturedata size
+            std::size_t texturedata_size;
+            status = rprImageGetInfo(image, RPR_IMAGE_DATA, 0, nullptr, &texturedata_size);
+            RETURN_IF_FAILED(status);
 
-            out->write_image(fmt, texture->GetData());
+            // Get data
+            std::vector<char> texturedata(texturedata_size);
+            status = rprImageGetInfo(image, RPR_IMAGE_DATA, 0, texturedata.data(), nullptr);
+            RETURN_IF_FAILED(status);
 
+            auto fmt = ToOiioFormat(image_format.type);
+            ImageSpec spec(image_desc.image_width, image_desc.image_height, 4, fmt);
+
+            out->open(fname, spec);
+            out->write_image(fmt, texturedata.data());
             out->close();
 
-        }
-        else
-        {
-            fname = image_name;
         }
     }
 
@@ -769,10 +784,8 @@ rpr_int MaterialIoXML::WriteTextureInput(XMLPrinter& printer, const rpr_material
         printer.PushAttribute("name", input_name);
         printer.PushAttribute("id", input_id);
         printer.PushAttribute("type", Baikal::InputMapType::kSampler);
-        // TODO: tex2name map?
         // TODO: store only relative path to image
-        // TODO: save new image if it is not present on a drive
-        printer.PushAttribute("value", image_name);
+        printer.PushAttribute("value", fname.c_str());
     }
     printer.CloseElement();
 
@@ -904,7 +917,6 @@ rpr_int MaterialIoXML::WriteArithmeticInput(XMLPrinter& printer, const rpr_mater
         break;
 
     case RPR_MATERIAL_NODE_OP_MAT_MUL:
-        //printer.PushAttribute("input0", child_ids["color0"]);
         return RPR_ERROR_UNIMPLEMENTED;
         break;
 
@@ -992,7 +1004,12 @@ rpr_int MaterialIoXML::LoadNodeInput(XMLElement const* xml_input, rpr_material_n
     case Baikal::InputMapType::kSampler:
     case Baikal::InputMapType::kSamplerBumpmap:
         {
-            std::string image_filename(xml_input->Attribute("value"));
+            std::experimental::filesystem::path image_path(xml_input->Attribute("value"));
+            if (image_path.is_relative())
+            {
+                image_path = base_path_ / image_path;
+            }
+            std::string image_filename = image_path.string();
 
             rpr_image image = nullptr;
 
@@ -1109,7 +1126,7 @@ rpr_int MaterialIoXML::LoadNodeInput(XMLElement const* xml_input, rpr_material_n
         // Specials
         case Baikal::InputMapType::kLerp:
         {
-            // Ignore "control" attribute!!! (Since we cannot set it in RPR layer)
+            // Ignore "control" attribute (Since we cannot set it in RPR layer)
             // RPR_MATERIAL_NODE_OP_AVERAGE works as lerp node, but always has control value equals to 0.5
             status = LoadTwoArgInput(RPR_MATERIAL_NODE_OP_AVERAGE, xml_input, &input_node);
             RETURN_IF_FAILED(status);
@@ -1176,36 +1193,8 @@ rpr_int MaterialIoXML::LoadNodeInput(XMLElement const* xml_input, rpr_material_n
             RETURN_IF_FAILED(status);
             break;
         }
-//        case Baikal::InputMapType::kMatMul:
-//        {
-//            uint32_t arg1_id = element->UnsignedAttribute("input0");
-//            InputMap::Ptr arg1 = LoadInputMap(io, input_map_cache.at(arg1_id), input_map_cache, loaded_inputs);
-//
-//            RadeonRays::matrix mat;
-//            std::istringstream iss(element->Attribute("matrix"));
-//            for (int i = 0; i < 4; ++i)
-//            {
-//                for (int j = 0; j < 4; ++j)
-//                {
-//                    iss >> mat.m[i][j];
-//                }
-//            }
-//
-//            result = InputMap_MatMul::Create(arg1, mat);
-//            break;
-//        }
-//        case Baikal::InputMapType::kRemap:
-//        {
-//            uint32_t src_id = element->UnsignedAttribute("src");
-//            InputMap::Ptr src = LoadInputMap(io, input_map_cache.at(src_id), input_map_cache, loaded_inputs);
-//            uint32_t dst_id = element->UnsignedAttribute("dst");
-//            InputMap::Ptr dst = LoadInputMap(io, input_map_cache.at(dst_id), input_map_cache, loaded_inputs);
-//            uint32_t data_id = element->UnsignedAttribute("data");
-//            InputMap::Ptr data = LoadInputMap(io, input_map_cache.at(data_id), input_map_cache, loaded_inputs);
-//
-//            result = InputMap_Remap::Create(src, dst, data);
-//            break;
-//        }
+        case Baikal::InputMapType::kMatMul:
+        case Baikal::InputMapType::kRemap:
         default:
         {
             return RPR_ERROR_UNSUPPORTED;

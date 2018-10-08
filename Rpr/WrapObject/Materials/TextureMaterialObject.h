@@ -31,10 +31,6 @@ public:
     TextureMaterialObject(Type type);
     Baikal::Texture::Ptr GetTexture() override;
 
-    //rprImageGetInfo:
-    virtual rpr_image_desc GetImageDesc() const override;
-    virtual char const* GetImageData() const override;
-    virtual rpr_image_format GetImageFormat() const override;
 protected:
 
     virtual void SetInputTexture(const std::string& input_name, TextureMaterialObject* input) override;

@@ -942,6 +942,22 @@ rpr_int rprCameraSetOrthoHeight(rpr_camera in_camera, rpr_float height)
 
 }
 
+std::size_t GetPixelBytes(rpr_component_type type)
+{
+    if (type == RPR_COMPONENT_TYPE_UINT8)
+    {
+        return 1;
+    }
+    else if (type == RPR_COMPONENT_TYPE_FLOAT16)
+    {
+        return 2;
+    }
+    else
+    {
+        return 4;
+    }
+}
+
 rpr_int rprImageGetInfo(rpr_image in_image, rpr_image_info in_image_info, size_t in_size, void * in_data, size_t * in_size_ret)
 {
     MaterialObject* img = WrapObject::Cast<MaterialObject>(in_image);
@@ -974,8 +990,9 @@ rpr_int rprImageGetInfo(rpr_image in_image, rpr_image_info in_image_info, size_t
     case RPR_IMAGE_DATA:
     {
         rpr_image_desc desc = img->GetImageDesc();
+        rpr_image_format format = img->GetImageFormat();
         const char* value = img->GetImageData();
-        size_ret = desc.image_width * desc.image_height * desc.image_depth;
+        size_ret = desc.image_width * desc.image_height * desc.image_depth * GetPixelBytes(format.type) * 4;
         data.resize(size_ret);
         memcpy(&data[0], value, size_ret);
         break;

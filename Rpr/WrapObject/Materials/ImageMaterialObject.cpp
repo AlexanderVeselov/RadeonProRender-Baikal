@@ -116,3 +116,36 @@ Baikal::Texture::Ptr ImageMaterialObject::GetTexture()
 { 
     return m_tex; 
 }
+
+rpr_image_desc ImageMaterialObject::GetImageDesc() const
+{
+    auto size = m_tex->GetSize();
+    return { (rpr_uint)size.x, (rpr_uint)size.y, (rpr_uint)size.z, 0, 0 };
+}
+
+
+rpr_image_format ImageMaterialObject::GetImageFormat() const
+{
+    rpr_component_type type;
+    switch (m_tex->GetFormat())
+    {
+    case Baikal::Texture::Format::kRgba8:
+        type = RPR_COMPONENT_TYPE_UINT8;
+        break;
+    case Baikal::Texture::Format::kRgba16:
+        type = RPR_COMPONENT_TYPE_FLOAT16;
+        break;
+    case Baikal::Texture::Format::kRgba32:
+        type = RPR_COMPONENT_TYPE_FLOAT32;
+        break;
+    default:
+        throw Exception(RPR_ERROR_INTERNAL_ERROR, "MaterialObject: invalid image format.");
+    }
+    //only 4component textures used
+    return{ 4, type };
+}
+
+char const* ImageMaterialObject::GetImageData() const
+{
+    return m_tex->GetData();
+}

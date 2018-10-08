@@ -32,6 +32,10 @@ public:
     ImageMaterialObject(const std::string& in_path);
 
     virtual Baikal::Texture::Ptr GetTexture() override;
+    virtual rpr_image_desc GetImageDesc() const override;
+    virtual rpr_image_format GetImageFormat() const override;
+    virtual char const* GetImageData() const override;
+
 private:
     Baikal::Texture::Ptr m_tex;
 };
