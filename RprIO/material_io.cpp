@@ -265,7 +265,14 @@ rpr_int MaterialIoXML::WriteMaterial(XMLPrinter& printer, const rpr_material_nod
         status = GetInputMapId(material, i, &input_id);
         RETURN_IF_FAILED(status);
 
-        printer.PushAttribute(input_name, input_id);
+        // Rename "uberv2.bump" or "uberv2.normal" to "uberv2.shading_normal"
+        std::string input_name_str(input_name);
+        if (input_name_str == "uberv2.bump" || input_name_str == "uberv2.normal")
+        {
+            input_name_str = "uberv2.shading_normal";
+        }
+
+        printer.PushAttribute(input_name_str.c_str(), input_id);
     }
 
     printer.CloseElement();
@@ -312,8 +319,7 @@ rpr_int MaterialIoXML::SaveMaterials(rpr_char const* filename, rpr_char const* b
     return RPR_SUCCESS;
 }
 
-rpr_int MaterialIoXML::LoadInput(rpr_material_node material, 
-    rpr_char const* input_name, std::int64_t input_id)
+rpr_int MaterialIoXML::LoadInput(rpr_material_node material, rpr_char const* input_name, std::int64_t input_id)
 {
     auto it = xml_input_maps_.find(input_id);
     if (it == xml_input_maps_.cend())
@@ -344,11 +350,18 @@ rpr_int MaterialIoXML::LoadInput(rpr_material_node material,
         RETURN_IF_FAILED(status);
         break;
     }
+    case Baikal::InputMapType::kRemap:
+    {
+        // RPR interface doesn't provide us remap arithmetic node, so
+        // skip it and jump to "data" target input
+        // (RPR layer adds remapping (0, 1) -> (-1, 1) to normal/bump maps though)
+        return LoadInput(material, input_name, xml_input->Int64Attribute("data"));
+    }
     default:
     {
         // Other input types - node input
         rpr_material_node input = nullptr;
-        status = LoadNodeInput(it->second, &input);
+        status = LoadNodeInput(xml_input, &input);
         RETURN_IF_FAILED(status);
 
         status = rprMaterialNodeSetInputN(material, input_name, input);
@@ -385,14 +398,22 @@ rpr_int MaterialIoXML::LoadMaterial(XMLElement& element, std::map<std::string, r
     // Get uberv2 layer attributes
     for (XMLAttribute const* layer_attribute = element.FirstAttribute(); layer_attribute; layer_attribute = layer_attribute->Next())
     {
-        char const* input_name = layer_attribute->Name();
-        if (strncmp(input_name, "uberv2", 6) != 0)
+        std::string input_name = layer_attribute->Name();
+
+        // Skip non-uberv2 inputs
+        if (input_name.substr(0, 6) == "uberv2")
         {
             continue;
         }
 
+        // Rename "uberv2.shading_normal" to "uberv2.normal"
+        if (input_name == "uberv2.shading_normal")
+        {
+            input_name = "uberv2.normal";
+        }
+
         std::int64_t child_id = layer_attribute->Int64Value();
-        status = LoadInput(material, input_name, child_id);
+        status = LoadInput(material, input_name.c_str(), child_id);
         RETURN_IF_FAILED(status);
     }
 
@@ -1193,7 +1214,7 @@ rpr_int MaterialIoXML::LoadNodeInput(XMLElement const* xml_input, rpr_material_n
             }
             else
             {
-                // Other configurations are not supported in RPR layer
+                // Other configurations are not supported by RPR layer
                 return RPR_ERROR_UNSUPPORTED;
             }
             status = LoadOneArgInput(operation, xml_input, &input_node);
@@ -1203,16 +1224,10 @@ rpr_int MaterialIoXML::LoadNodeInput(XMLElement const* xml_input, rpr_material_n
         }
         case Baikal::InputMapType::kShuffle2:
         {
-            // Ignore "mask" attribute!!! (Since we cannot set it in RPR layer)
+            // Ignore "mask" attribute (Since we cannot set it in RPR layer)
             status = LoadTwoArgInput(RPR_MATERIAL_NODE_OP_COMBINE, xml_input, &input_node);
             RETURN_IF_FAILED(status);
             break;
-        }
-        case Baikal::InputMapType::kRemap:
-        {
-            //std::int64_t arg1_id = xml_input->Int64Attribute("data");
-            //status = LoadInput(material_node, "color0", arg1_id);
-            //RETURN_IF_FAILED(status);
         }
         case Baikal::InputMapType::kMatMul:
         default:
